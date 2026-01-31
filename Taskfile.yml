@@ -15,7 +15,7 @@ tasks:
   build:
     desc: Build the binary
     cmds:
-      - go build {{.LDFLAGS}} -o {{.BINARY_NAME}} ./cmd/bt
+      - go build -buildvcs=false {{.LDFLAGS}} -o {{.BINARY_NAME}} ./cmd/bt
     sources:
       - '**/*.go'
       - go.mod

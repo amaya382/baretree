@@ -43,7 +43,7 @@ func buildBinary() error {
 	// Build binary in temp location
 	btBinary = filepath.Join(os.TempDir(), "bt-e2e-test")
 
-	cmd := exec.Command("go", "build", "-o", btBinary, "./cmd/bt")
+	cmd := exec.Command("go", "build", "-buildvcs=false", "-o", btBinary, "./cmd/bt")
 	cmd.Dir = projectRoot
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

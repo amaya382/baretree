@@ -25,7 +25,7 @@ func NewManager(repoRoot string) (*Manager, error) {
 		return nil, err
 	}
 
-	barePath := filepath.Join(repoRoot, cfg.Repository.BareDir)
+	barePath := filepath.Join(repoRoot, config.BareDir)
 	executor := git.NewExecutor(barePath)
 
 	return &Manager{
@@ -38,14 +38,14 @@ func NewManager(repoRoot string) (*Manager, error) {
 
 // InitializeBareRepo creates a baretree repository structure
 // Configuration is stored in git-config instead of baretree.toml
-func InitializeBareRepo(repoRoot, bareDir, defaultBranch string) error {
+func InitializeBareRepo(repoRoot, defaultBranch string) error {
 	// Create repository root
 	if err := os.MkdirAll(repoRoot, 0755); err != nil {
 		return fmt.Errorf("failed to create repository root: %w", err)
 	}
 
 	// Initialize config in git-config
-	if err := config.InitializeBaretreeConfig(repoRoot, bareDir, defaultBranch); err != nil {
+	if err := config.InitializeBaretreeConfig(repoRoot, defaultBranch); err != nil {
 		return fmt.Errorf("failed to initialize config: %w", err)
 	}
 

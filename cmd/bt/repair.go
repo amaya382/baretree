@@ -226,7 +226,7 @@ type repairTarget struct {
 }
 
 type brokenWorktree struct {
-	name    string // Worktree directory name in .bare/worktrees/
+	name    string // Worktree directory name in .git/worktrees/
 	branch  string // Branch name
 	oldPath string // Last known path
 }
@@ -409,7 +409,7 @@ func detectCurrentWorktree(cwd, repoRoot string) (string, error) {
 		if parent == worktreePath || parent == repoRoot || !strings.HasPrefix(parent, repoRoot) {
 			// Reached repo root or can't go further - use first path component as fallback
 			parts := strings.Split(relPath, string(filepath.Separator))
-			if len(parts) > 0 && parts[0] != "." && parts[0] != ".bare" {
+			if len(parts) > 0 && parts[0] != "." && parts[0] != ".git" {
 				return parts[0], nil
 			}
 			return "", fmt.Errorf("could not find worktree root")
@@ -428,7 +428,7 @@ func detectCurrentWorktree(cwd, repoRoot string) (string, error) {
 
 // runFixPaths fixes worktree paths after the repository has been moved.
 // If externalPaths is provided, those paths are used directly.
-// Otherwise, it reads the gitdir files in .bare/worktrees/*/gitdir to find the old paths,
+// Otherwise, it reads the gitdir files in .git/worktrees/*/gitdir to find the old paths,
 // calculates the new paths based on the current repository root, and runs
 // git worktree repair to update Git's internal links.
 // For external paths, it also moves them back into the baretree structure.
@@ -658,7 +658,7 @@ func getBranchNameFromPath(bareDir, worktreePath string) string {
 		return ""
 	}
 
-	// Content is like "gitdir: /path/to/.bare/worktrees/test"
+	// Content is like "gitdir: /path/to/.git/worktrees/test"
 	gitdirLine := strings.TrimSpace(string(content))
 	if !strings.HasPrefix(gitdirLine, "gitdir: ") {
 		return ""

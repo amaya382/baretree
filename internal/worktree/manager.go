@@ -156,7 +156,7 @@ func (m *Manager) List() ([]git.Worktree, error) {
 		}
 		// Also check by relative path comparison
 		relPath, err := filepath.Rel(m.RepoRoot, wt.Path)
-		if err == nil && relPath == m.Config.Repository.BareDir {
+		if err == nil && relPath == config.BareDir {
 			continue
 		}
 
@@ -194,7 +194,7 @@ func (m *Manager) IsManaged(worktreePath string) bool {
 	}
 
 	// Check if it's not the bare directory
-	if worktreePath == m.BareDir || strings.HasPrefix(relPath, m.Config.Repository.BareDir) {
+	if worktreePath == m.BareDir || strings.HasPrefix(relPath, config.BareDir) {
 		return false
 	}
 

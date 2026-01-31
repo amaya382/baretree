@@ -11,7 +11,6 @@ import (
 // Git config keys for baretree
 const (
 	GitConfigSection          = "baretree"
-	GitConfigKeyBareDir       = "baretree.baredir"
 	GitConfigKeyDefaultBranch = "baretree.defaultbranch"
 	GitConfigKeyShared        = "baretree.shared"
 )
@@ -25,10 +24,8 @@ func LoadConfigFromGit(repoRoot string) (*Config, error) {
 	}
 
 	cfg := &Config{
-		Repository: Repository{
-			BareDir: filepath.Base(bareDir),
-		},
-		Shared: []Shared{},
+		Repository: Repository{},
+		Shared:     []Shared{},
 	}
 
 	// Read config values
@@ -53,13 +50,9 @@ func LoadConfigFromGit(repoRoot string) (*Config, error) {
 
 // SaveConfigToGit saves configuration to git-config in the bare repository
 func SaveConfigToGit(repoRoot string, cfg *Config) error {
-	bareDir := filepath.Join(repoRoot, cfg.Repository.BareDir)
+	bareDir := filepath.Join(repoRoot, BareDir)
 
 	// Save basic config
-	if err := gitConfigSet(bareDir, GitConfigKeyBareDir, cfg.Repository.BareDir); err != nil {
-		return fmt.Errorf("failed to set baredir: %w", err)
-	}
-
 	if err := gitConfigSet(bareDir, GitConfigKeyDefaultBranch, cfg.Repository.DefaultBranch); err != nil {
 		return fmt.Errorf("failed to set defaultbranch: %w", err)
 	}
@@ -78,7 +71,7 @@ func SaveConfigToGit(repoRoot string, cfg *Config) error {
 
 // IsBaretreeRepoGit checks if the given path is a baretree repository
 // A baretree repository is identified by:
-// 1. Having a bare git repository (e.g., .bare directory) under the project root
+// 1. Having a bare git repository (.git directory) under the project root
 // 2. The bare repository being a valid git bare repository
 func IsBaretreeRepoGit(path string) bool {
 	bareDir := findBareDir(path)
@@ -156,20 +149,22 @@ func findRepoRootFromWorktree(startPath string) (string, bool) {
 	}
 }
 
-// findBareDir looks for a bare git repository in common locations
+// findBareDir looks for the bare git repository (.git directory)
 // It also handles the case where we're in a worktree (where .git is a file pointing to the bare repo)
 func findBareDir(repoRoot string) string {
-	// Check for .bare directory first (baretree standard)
-	bareDir := filepath.Join(repoRoot, ".bare")
-	info, err := os.Stat(bareDir)
-	if err == nil && info.IsDir() && isBareRepo(bareDir) {
-		return bareDir
+	gitPath := filepath.Join(repoRoot, BareDir)
+	info, err := os.Stat(gitPath)
+	if err != nil {
+		return ""
 	}
 
-	// Check for .git file (worktree pointer) - NOT .git directory (normal git repo)
-	gitPath := filepath.Join(repoRoot, ".git")
-	info, err = os.Stat(gitPath)
-	if err == nil && !info.IsDir() {
+	// Check if it's a directory (bare repo at root)
+	if info.IsDir() && isBareRepo(gitPath) {
+		return gitPath
+	}
+
+	// Check if it's a file (worktree pointer)
+	if !info.IsDir() {
 		// It's a file - this is a worktree, read to resolve to bare repo
 		content, err := os.ReadFile(gitPath)
 		if err != nil {
@@ -190,7 +185,7 @@ func findBareDir(repoRoot string) string {
 }
 
 // resolveWorktreeToBareRepo resolves a worktree git directory to the main bare repository
-// worktreeGitDir is typically something like "/path/to/repo/.bare/worktrees/branch-name"
+// worktreeGitDir is typically something like "/path/to/repo/.git/worktrees/branch-name"
 func resolveWorktreeToBareRepo(worktreeGitDir string) string {
 	// Check if this looks like a worktree path (contains /worktrees/)
 	if !strings.Contains(worktreeGitDir, string(filepath.Separator)+"worktrees"+string(filepath.Separator)) {
@@ -198,7 +193,7 @@ func resolveWorktreeToBareRepo(worktreeGitDir string) string {
 	}
 
 	// Find the worktrees directory and go up to get the bare repo
-	// /path/to/repo/.bare/worktrees/branch-name -> /path/to/repo/.bare
+	// /path/to/repo/.git/worktrees/branch-name -> /path/to/repo/.git
 	parts := strings.Split(worktreeGitDir, string(filepath.Separator)+"worktrees"+string(filepath.Separator))
 	if len(parts) >= 1 {
 		return parts[0]
@@ -209,12 +204,20 @@ func resolveWorktreeToBareRepo(worktreeGitDir string) string {
 
 // isBareRepo checks if a directory is a bare git repository
 func isBareRepo(dir string) bool {
+	// Check if HEAD file exists
 	headPath := filepath.Join(dir, "HEAD")
-	info, err := os.Stat(headPath)
+	if _, err := os.Stat(headPath); err != nil {
+		return false
+	}
+
+	// Check if core.bare = true in the config
+	// Run git config to check (more reliable than parsing config file)
+	cmd := exec.Command("git", "config", "--file", filepath.Join(dir, "config"), "--get", "core.bare")
+	output, err := cmd.Output()
 	if err != nil {
 		return false
 	}
-	return !info.IsDir()
+	return strings.TrimSpace(string(output)) == "true"
 }
 
 // gitConfigGet gets a single value from git config
@@ -301,14 +304,10 @@ func GetBareDir(repoRoot string) (string, error) {
 }
 
 // InitializeBaretreeConfig initializes baretree configuration in the bare repository
-func InitializeBaretreeConfig(repoRoot, bareDir, defaultBranch string) error {
-	barePath := filepath.Join(repoRoot, bareDir)
+func InitializeBaretreeConfig(repoRoot, defaultBranch string) error {
+	barePath := filepath.Join(repoRoot, BareDir)
 
 	// Set config values in git config
-	if err := gitConfigSet(barePath, GitConfigKeyBareDir, bareDir); err != nil {
-		return fmt.Errorf("failed to set baredir: %w", err)
-	}
-
 	if err := gitConfigSet(barePath, GitConfigKeyDefaultBranch, defaultBranch); err != nil {
 		return fmt.Errorf("failed to set defaultbranch: %w", err)
 	}

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/amaya382/baretree/internal/config"
 	"github.com/amaya382/baretree/internal/git"
 	"github.com/amaya382/baretree/internal/global"
 	"github.com/amaya382/baretree/internal/repository"
@@ -16,7 +17,6 @@ import (
 
 var (
 	migrateDestination string
-	migrateBareDir     string
 	migrateInPlace     bool
 	migrateToRoot      bool
 	migrateRepoPath    string
@@ -58,7 +58,6 @@ Examples:
 func init() {
 	migrateCmd.Flags().BoolVarP(&migrateInPlace, "in-place", "i", false, "Replace the original repository in-place (recommended)")
 	migrateCmd.Flags().StringVarP(&migrateDestination, "destination", "d", "", "Destination directory for the new baretree structure")
-	migrateCmd.Flags().StringVar(&migrateBareDir, "bare-dir", ".bare", "Bare repository directory name")
 	migrateCmd.Flags().BoolVarP(&migrateToRoot, "to-root", "r", false, "Move repository to baretree root with ghq-style path")
 	migrateCmd.Flags().StringVar(&migrateRepoPath, "path", "", "Repository path for --to-root (e.g., github.com/user/repo)")
 }
@@ -176,52 +175,41 @@ func runMigrate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	return performMigration(absSource, absDestination, currentBranch, migrateBareDir, migrateInPlace, externalWorktrees)
+	return performMigration(absSource, absDestination, currentBranch, migrateInPlace, externalWorktrees)
 }
 
-func performMigration(absSource, absDestination, currentBranch, bareDir string, inPlace bool, externalWorktrees []git.Worktree) error {
+func performMigration(absSource, absDestination, currentBranch string, inPlace bool, externalWorktrees []git.Worktree) error {
 	if inPlace {
-		return migrateInPlaceImpl(absSource, currentBranch, bareDir, externalWorktrees)
+		return migrateInPlaceImpl(absSource, currentBranch, externalWorktrees)
 	}
-	return migrateToDestination(absSource, absDestination, currentBranch, bareDir, externalWorktrees)
+	return migrateToDestination(absSource, absDestination, currentBranch, externalWorktrees)
 }
 
-func migrateInPlaceImpl(absSource, currentBranch, bareDir string, externalWorktrees []git.Worktree) error {
+func migrateInPlaceImpl(absSource, currentBranch string, externalWorktrees []git.Worktree) error {
 	// For in-place migration:
-	// 1. Move .git to .bare (or specified bareDir)
+	// 1. Convert .git directory to a bare repo
 	// 2. Initialize baretree config in git-config
-	// 3. Move all files except .bare to <branch>/ directory
-	// 4. Convert .bare to a proper bare repo and set up worktree
+	// 3. Move all files except .git to <branch>/ directory
+	// 4. Set up worktree
 	// 5. Move external worktrees into the baretree structure
 
-	gitDir := filepath.Join(absSource, ".git")
-	barePath := filepath.Join(absSource, bareDir)
+	barePath := filepath.Join(absSource, config.BareDir)
 	worktreePath := filepath.Join(absSource, currentBranch)
 
-	// Step 1: Rename .git to bare directory
-	fmt.Printf("Converting .git to bare repository at %s...\n", barePath)
-	if err := os.Rename(gitDir, barePath); err != nil {
-		return fmt.Errorf("failed to move .git to %s: %w", bareDir, err)
-	}
+	// Step 1: Convert .git to bare repository
+	fmt.Printf("Converting to bare repository at %s...\n", barePath)
 
 	// Step 2: Convert to bare repository
 	bareExecutor := git.NewExecutor(barePath)
 	if _, err := bareExecutor.Execute("config", "--bool", "core.bare", "true"); err != nil {
-		// Rollback
-		if rollbackErr := os.Rename(barePath, gitDir); rollbackErr != nil {
-			return fmt.Errorf("failed to set bare config and also failed to roll back: %w / %w", err, rollbackErr)
-		}
 		return fmt.Errorf("failed to set bare config: %w", err)
 	}
 
 	// Step 3: Create worktree directory
 	if err := os.MkdirAll(worktreePath, 0755); err != nil {
-		// Rollback
+		// Rollback: revert to non-bare
 		if _, executeErr := bareExecutor.Execute("config", "--bool", "core.bare", "false"); executeErr != nil {
 			return fmt.Errorf("failed to create worktree directory and also failed to roll back: %w /%w", err, executeErr)
-		}
-		if renameErr := os.Rename(barePath, gitDir); renameErr != nil {
-			return fmt.Errorf("failed to create worktree directory and also failed to roll back: %w /%w", err, renameErr)
 		}
 		return fmt.Errorf("failed to create worktree directory: %w", err)
 	}
@@ -234,7 +222,7 @@ func migrateInPlaceImpl(absSource, currentBranch, bareDir string, externalWorktr
 
 	for _, entry := range entries {
 		name := entry.Name()
-		if name == bareDir || name == currentBranch {
+		if name == config.BareDir || name == currentBranch {
 			continue
 		}
 		srcPath := filepath.Join(absSource, name)
@@ -285,12 +273,18 @@ func migrateInPlaceImpl(absSource, currentBranch, bareDir string, externalWorktr
 		os.Remove(srcIndex)
 	}
 
-	// Step 6: Initialize baretree config
-	if err := repository.InitializeBareRepo(absSource, bareDir, currentBranch); err != nil {
+	// Step 6: Update submodule .git files for new directory structure
+	fmt.Printf("Updating submodule paths...\n")
+	if err := updateSubmoduleGitFiles(worktreePath, barePath); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to update some submodule paths: %v\n", err)
+	}
+
+	// Step 7: Initialize baretree config
+	if err := repository.InitializeBareRepo(absSource, currentBranch); err != nil {
 		return fmt.Errorf("failed to initialize config: %w", err)
 	}
 
-	// Step 7: Move external worktrees into the baretree structure
+	// Step 8: Move external worktrees into the baretree structure
 	movedWorktrees, err := migrateExternalWorktrees(absSource, barePath, bareExecutor, externalWorktrees)
 	if err != nil {
 		return fmt.Errorf("failed to migrate external worktrees: %w", err)
@@ -311,14 +305,14 @@ func migrateInPlaceImpl(absSource, currentBranch, bareDir string, externalWorktr
 	return nil
 }
 
-func migrateToDestination(absSource, absDestination, currentBranch, bareDir string, externalWorktrees []git.Worktree) error {
+func migrateToDestination(absSource, absDestination, currentBranch string, externalWorktrees []git.Worktree) error {
 	// For destination migration:
 	// 1. Create destination directory
 	// 2. Copy .git as bare repository
 	// 3. Create worktree directory and copy all working files
 	// 4. Set up worktree links and preserve index
 
-	barePath := filepath.Join(absDestination, bareDir)
+	barePath := filepath.Join(absDestination, config.BareDir)
 	worktreePath := filepath.Join(absDestination, currentBranch)
 	srcGitDir := filepath.Join(absSource, ".git")
 
@@ -441,13 +435,19 @@ func migrateToDestination(absSource, absDestination, currentBranch, bareDir stri
 		os.Remove(srcIndex)
 	}
 
-	// Step 6: Initialize baretree config
-	if err := repository.InitializeBareRepo(absDestination, bareDir, currentBranch); err != nil {
+	// Step 6: Update submodule .git files for new directory structure
+	fmt.Printf("Updating submodule paths...\n")
+	if err := updateSubmoduleGitFiles(worktreePath, barePath); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to update some submodule paths: %v\n", err)
+	}
+
+	// Step 7: Initialize baretree config
+	if err := repository.InitializeBareRepo(absDestination, currentBranch); err != nil {
 		os.RemoveAll(absDestination)
 		return fmt.Errorf("failed to initialize config: %w", err)
 	}
 
-	// Step 7: Copy and migrate external worktrees
+	// Step 8: Copy and migrate external worktrees
 	movedWorktrees, err := migrateExternalWorktreesWithCopy(absDestination, barePath, bareExecutor, externalWorktrees)
 	if err != nil {
 		os.RemoveAll(absDestination)
@@ -618,35 +618,11 @@ func runMigrateToRoot(absSource string) error {
 
 // findBareDir finds the bare repository directory in a baretree repo
 func findBareDir(repoRoot string) (string, error) {
-	// Try common bare directory names
-	commonNames := []string{".bare", "bare"}
-	for _, name := range commonNames {
-		barePath := filepath.Join(repoRoot, name)
-		if info, err := os.Stat(barePath); err == nil && info.IsDir() {
-			// Verify it's a git directory
-			if _, err := os.Stat(filepath.Join(barePath, "HEAD")); err == nil {
-				return barePath, nil
-			}
-		}
-	}
-
-	// Search for any directory that looks like a bare repo
-	entries, err := os.ReadDir(repoRoot)
-	if err != nil {
-		return "", err
-	}
-
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		barePath := filepath.Join(repoRoot, entry.Name())
+	barePath := filepath.Join(repoRoot, config.BareDir)
+	if info, err := os.Stat(barePath); err == nil && info.IsDir() {
+		// Verify it's a git directory
 		if _, err := os.Stat(filepath.Join(barePath, "HEAD")); err == nil {
-			executor := git.NewExecutor(barePath)
-			isBare, _ := executor.Execute("rev-parse", "--is-bare-repository")
-			if isBare == "true" {
-				return barePath, nil
-			}
+			return barePath, nil
 		}
 	}
 
@@ -872,7 +848,7 @@ func migrateToRootImpl(absSource, absDestination string) error {
 	}
 
 	// Now perform in-place migration at destination with external worktrees
-	if err := migrateInPlaceImpl(absDestination, currentBranch, migrateBareDir, externalWorktrees); err != nil {
+	if err := migrateInPlaceImpl(absDestination, currentBranch, externalWorktrees); err != nil {
 		// Try to restore on failure
 		if rollbackErr := os.Rename(absDestination, absSource); rollbackErr != nil {
 			return fmt.Errorf("failed to migrate repository in place and also failed to roll back: %w / %w", err, rollbackErr)
@@ -925,6 +901,11 @@ func migrateExternalWorktrees(repoRoot, barePath string, executor *git.Executor,
 				return movedWorktrees, fmt.Errorf("failed to repair worktree and also failed to roll back: %w / %w", err, rollbackErr)
 			}
 			return movedWorktrees, fmt.Errorf("failed to repair worktree %s: %w", wt.Branch, err)
+		}
+
+		// Update submodule .git files in the moved worktree
+		if err := updateSubmoduleGitFiles(targetPath, barePath); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to update some submodule paths for %s: %v\n", wt.Branch, err)
 		}
 
 		movedWorktrees = append(movedWorktrees, targetPath)
@@ -1029,10 +1010,142 @@ func migrateExternalWorktreesWithCopy(repoRoot, barePath string, executor *git.E
 			}
 		}
 
+		// Update submodule .git files in the copied worktree
+		if err := updateSubmoduleGitFiles(targetPath, barePath); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to update some submodule paths for %s: %v\n", wt.Branch, err)
+		}
+
 		movedWorktrees = append(movedWorktrees, targetPath)
 	}
 
 	return movedWorktrees, nil
+}
+
+// updateSubmoduleGitFiles updates all submodule .git files to use correct relative paths
+// This is needed because when files are moved from repo root to a worktree subdirectory,
+// the relative paths to .git/modules/ need to be updated
+func updateSubmoduleGitFiles(worktreePath, barePath string) error {
+	// Check if .gitmodules exists
+	gitmodulesPath := filepath.Join(worktreePath, ".gitmodules")
+	if _, err := os.Stat(gitmodulesPath); os.IsNotExist(err) {
+		return nil // No submodules
+	}
+
+	// Walk through worktree to find submodule .git files
+	return filepath.Walk(worktreePath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil // Skip errors
+		}
+
+		// Skip the worktree's own .git file
+		if path == filepath.Join(worktreePath, ".git") {
+			return nil
+		}
+
+		// Look for .git files (not directories) in subdirectories
+		if info.Name() == ".git" && !info.IsDir() {
+			// Read current content
+			content, err := os.ReadFile(path)
+			if err != nil {
+				return nil // Skip if can't read
+			}
+
+			contentStr := string(content)
+			if !strings.HasPrefix(contentStr, "gitdir:") {
+				return nil // Not a gitdir reference
+			}
+
+			// Extract the gitdir path
+			gitdirPath := strings.TrimSpace(strings.TrimPrefix(contentStr, "gitdir:"))
+
+			// Check if it references .git/modules (standard git structure)
+			if strings.Contains(gitdirPath, "/.git/modules/") || strings.Contains(gitdirPath, string(filepath.Separator)+".git"+string(filepath.Separator)+"modules"+string(filepath.Separator)) {
+				// Get the submodule path relative to worktree
+				submodulePath := filepath.Dir(path)
+				relToWorktree, err := filepath.Rel(worktreePath, submodulePath)
+				if err != nil {
+					return nil
+				}
+
+				// Calculate the depth (number of directories) from submodule to worktree
+				depth := 1 // Start with 1 for the worktree directory itself
+				for _, c := range relToWorktree {
+					if c == filepath.Separator {
+						depth++
+					}
+				}
+				if relToWorktree != "." {
+					depth++ // Add 1 for the submodule directory
+				}
+
+				// Extract module path from the gitdir path
+				modulePath := extractModulePath(gitdirPath)
+				if modulePath == "" {
+					return nil
+				}
+
+				// Build new gitdir path with correct depth
+				var relPrefix string
+				for i := 0; i < depth; i++ {
+					relPrefix = filepath.Join(relPrefix, "..")
+				}
+				newGitdir := filepath.Join(relPrefix, ".git", "modules", modulePath)
+				newGitdir = filepath.Clean(newGitdir)
+
+				// Write updated content
+				newContent := fmt.Sprintf("gitdir: %s\n", newGitdir)
+				if err := os.WriteFile(path, []byte(newContent), info.Mode()); err != nil {
+					return nil // Skip if can't write
+				}
+
+				// Update the module's config file with correct worktree path
+				moduleGitDir := filepath.Join(barePath, "modules", modulePath)
+				if err := updateModuleWorktreePath(moduleGitDir, submodulePath); err != nil {
+					// Non-fatal, just log
+					fmt.Fprintf(os.Stderr, "Warning: failed to update module config for %s: %v\n", modulePath, err)
+				}
+			}
+		}
+
+		return nil
+	})
+}
+
+// extractModulePath extracts the module path from a gitdir path
+// e.g., "../../.git/modules/libs/mylib" -> "libs/mylib"
+func extractModulePath(gitdirPath string) string {
+	marker := ".git/modules/"
+	idx := strings.Index(gitdirPath, marker)
+	if idx == -1 {
+		// Try with backslash for Windows compatibility
+		marker = ".git\\modules\\"
+		idx = strings.Index(gitdirPath, marker)
+	}
+	if idx == -1 {
+		return ""
+	}
+	return gitdirPath[idx+len(marker):]
+}
+
+// updateModuleWorktreePath updates the core.worktree setting in a submodule's config
+func updateModuleWorktreePath(moduleGitDir, submodulePath string) error {
+	absSubmodulePath, err := filepath.Abs(submodulePath)
+	if err != nil {
+		return err
+	}
+
+	relWorktree, err := filepath.Rel(moduleGitDir, absSubmodulePath)
+	if err != nil {
+		return err
+	}
+
+	configFile := filepath.Join(moduleGitDir, "config")
+	executor := git.NewExecutor(filepath.Dir(moduleGitDir))
+	if _, err := executor.Execute("config", "-f", configFile, "core.worktree", relWorktree); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // copyWorktreeDir copies a worktree directory, excluding the .git file

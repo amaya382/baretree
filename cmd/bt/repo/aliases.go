@@ -112,20 +112,16 @@ Examples:
 
 func init() {
 	// Copy flags from original commands to aliases
-	InitAliasCmd.Flags().StringVar(&initBareDir, "bare-dir", ".bare", "Bare repository directory name")
 	InitAliasCmd.Flags().StringVarP(&initDefaultBranch, "branch", "b", "main", "Default branch name")
 
 	CloneAliasCmd.Flags().StringVarP(&cloneBranch, "branch", "b", "", "Checkout specific branch instead of default")
-	CloneAliasCmd.Flags().StringVar(&cloneBareDir, "bare-dir", ".bare", "Bare repository directory name")
 
 	MigrateAliasCmd.Flags().BoolVarP(&migrateInPlace, "in-place", "i", false, "Replace the original repository in-place (recommended)")
 	MigrateAliasCmd.Flags().StringVarP(&migrateDestination, "destination", "d", "", "Destination directory for the new baretree structure")
-	MigrateAliasCmd.Flags().StringVar(&migrateBareDir, "bare-dir", ".bare", "Bare repository directory name")
 	MigrateAliasCmd.Flags().BoolVarP(&migrateToRoot, "to-root", "r", false, "Move repository to baretree root with ghq-style path")
 	MigrateAliasCmd.Flags().StringVar(&migrateRepoPath, "path", "", "Repository path for --to-root (e.g., github.com/user/repo)")
 
 	GetAliasCmd.Flags().StringVarP(&getBranch, "branch", "b", "", "Checkout specific branch")
-	GetAliasCmd.Flags().StringVar(&getBareDir, "bare-dir", "", "Bare repository directory name (default from config)")
 	GetAliasCmd.Flags().BoolVar(&getShallow, "shallow", false, "Perform a shallow clone")
 	GetAliasCmd.Flags().BoolVarP(&getUpdate, "update", "u", false, "Update existing repository")
 

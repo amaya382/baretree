@@ -159,6 +159,12 @@ func runUnbare(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(os.Stderr, "Warning: failed to copy some files: %v\n", err)
 	}
 
+	// Update submodule .git files for standalone repository structure
+	fmt.Println("Updating submodule paths...")
+	if err := updateSubmoduleGitFilesForUnbare(absDestination); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to update submodule paths: %v\n", err)
+	}
+
 	// Remove files that were deleted in the source worktree
 	// (copyWorktreeFiles doesn't copy deleted files, but checkout restored them)
 	for _, filename := range deletedFiles {
@@ -257,6 +263,113 @@ func updateSubmoduleGitdirs(repoRoot string) error {
 	})
 }
 
+// updateSubmoduleGitFilesForUnbare updates submodule .git files for standalone repository structure
+// When copying from a baretree worktree (which has deeper nesting), the relative paths need adjustment
+func updateSubmoduleGitFilesForUnbare(repoRoot string) error {
+	// Check if .gitmodules exists
+	gitmodulesPath := filepath.Join(repoRoot, ".gitmodules")
+	if _, err := os.Stat(gitmodulesPath); os.IsNotExist(err) {
+		return nil // No submodules
+	}
+
+	// Walk through repository to find submodule .git files
+	return filepath.Walk(repoRoot, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil // Skip errors
+		}
+
+		// Skip the repo's own .git directory
+		if path == filepath.Join(repoRoot, ".git") {
+			return filepath.SkipDir
+		}
+
+		// Look for .git files (not directories) in subdirectories
+		if info.Name() == ".git" && !info.IsDir() {
+			// Read current content
+			content, err := os.ReadFile(path)
+			if err != nil {
+				return nil // Skip if can't read
+			}
+
+			contentStr := string(content)
+			if !strings.HasPrefix(contentStr, "gitdir:") {
+				return nil // Not a gitdir reference
+			}
+
+			// Extract the gitdir path
+			gitdirPath := strings.TrimSpace(strings.TrimPrefix(contentStr, "gitdir:"))
+
+			// Check if it references .git/modules
+			if strings.Contains(gitdirPath, "/.git/modules/") || strings.Contains(gitdirPath, string(filepath.Separator)+".git"+string(filepath.Separator)+"modules"+string(filepath.Separator)) {
+				// Calculate the correct relative path for a standard git repo structure
+				submodulePath := filepath.Dir(path)
+				relToRoot, err := filepath.Rel(submodulePath, repoRoot)
+				if err != nil {
+					return nil
+				}
+
+				// Extract module path
+				modulePath := extractModulePathForUnbare(gitdirPath)
+				if modulePath == "" {
+					return nil
+				}
+
+				// Build new gitdir path (from submodule to repo root, then to .git/modules)
+				newGitdir := filepath.Join(relToRoot, ".git", "modules", modulePath)
+				newGitdir = filepath.Clean(newGitdir)
+
+				// Write updated content
+				newContent := fmt.Sprintf("gitdir: %s\n", newGitdir)
+				if err := os.WriteFile(path, []byte(newContent), info.Mode()); err != nil {
+					return nil // Skip if can't write
+				}
+
+				// Also update the module's config file
+				moduleGitDir := filepath.Join(repoRoot, ".git", "modules", modulePath)
+				_ = updateModuleWorktreePathForUnbare(moduleGitDir, submodulePath)
+			}
+		}
+
+		return nil
+	})
+}
+
+// extractModulePathForUnbare extracts the module path from a gitdir path
+func extractModulePathForUnbare(gitdirPath string) string {
+	marker := ".git/modules/"
+	idx := strings.Index(gitdirPath, marker)
+	if idx == -1 {
+		marker = ".git\\modules\\"
+		idx = strings.Index(gitdirPath, marker)
+	}
+	if idx == -1 {
+		return ""
+	}
+	return gitdirPath[idx+len(marker):]
+}
+
+// updateModuleWorktreePathForUnbare updates the core.worktree setting in a submodule's config
+func updateModuleWorktreePathForUnbare(moduleGitDir, submodulePath string) error {
+	absSubmodulePath, err := filepath.Abs(submodulePath)
+	if err != nil {
+		return err
+	}
+
+	relWorktree, err := filepath.Rel(moduleGitDir, absSubmodulePath)
+	if err != nil {
+		return err
+	}
+
+	configFile := filepath.Join(moduleGitDir, "config")
+	if _, err := os.Stat(configFile); os.IsNotExist(err) {
+		return nil
+	}
+
+	executor := git.NewExecutor(filepath.Dir(moduleGitDir))
+	_, _ = executor.Execute("config", "-f", configFile, "core.worktree", relWorktree)
+	return nil
+}
+
 // copyWorktreeFiles copies all files from source worktree to destination,
 // including .gitignore'd files and preserving empty directories
 func copyWorktreeFiles(source, destination string) error {
@@ -306,7 +419,7 @@ func copyWorktreeFiles(source, destination string) error {
 
 // copyIndexFile copies the index file to preserve staging state
 func copyIndexFile(bareDir, worktreePath, destination, branchName string) error {
-	// The index file for worktrees is in .bare/worktrees/<branch>/index
+	// The index file for worktrees is in .git/worktrees/<branch>/index
 	worktreeGitDir := filepath.Join(bareDir, "worktrees", branchName)
 	srcIndex := filepath.Join(worktreeGitDir, "index")
 

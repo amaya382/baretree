@@ -24,8 +24,8 @@ func TestJourney1_BasicWorkflow(t *testing.T) {
 		// Verify structure
 		projectDir := filepath.Join(tempDir, "my-project")
 		assertFileExists(t, projectDir)
-		assertFileExists(t, filepath.Join(projectDir, ".bare"))
-		assertFileExists(t, filepath.Join(projectDir, ".bare"))
+		assertFileExists(t, filepath.Join(projectDir, ".git"))
+		assertFileExists(t, filepath.Join(projectDir, ".git"))
 
 		// Should have a default branch worktree (main or master)
 		mainExists := isDirectory(filepath.Join(projectDir, "main"))
@@ -192,8 +192,8 @@ func TestJourney3_MigrateExistingRepo(t *testing.T) {
 
 		// Check new structure
 		assertFileExists(t, newDir)
-		assertFileExists(t, filepath.Join(newDir, ".bare"))
-		assertFileExists(t, filepath.Join(newDir, ".bare"))
+		assertFileExists(t, filepath.Join(newDir, ".git"))
+		assertFileExists(t, filepath.Join(newDir, ".git"))
 		assertFileExists(t, filepath.Join(newDir, "develop"))
 	})
 

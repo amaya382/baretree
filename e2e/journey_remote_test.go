@@ -84,7 +84,7 @@ func TestAddRemoteBranch(t *testing.T) {
 	projectDir := filepath.Join(tempDir, "test-repo")
 
 	// Configure fetch refspec (needed for bare clone)
-	bareDir := filepath.Join(projectDir, ".bare")
+	bareDir := filepath.Join(projectDir, ".git")
 	cmd := exec.Command("git", "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
 	cmd.Dir = bareDir
 	_ = cmd.Run()
@@ -129,7 +129,7 @@ func TestAddRemoteBranchExplicit(t *testing.T) {
 	projectDir := filepath.Join(tempDir, "test-repo")
 
 	// Configure fetch refspec
-	bareDir := filepath.Join(projectDir, ".bare")
+	bareDir := filepath.Join(projectDir, ".git")
 	cmd := exec.Command("git", "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
 	cmd.Dir = bareDir
 	_ = cmd.Run()
@@ -158,7 +158,7 @@ func TestAddWithFetch(t *testing.T) {
 	projectDir := filepath.Join(tempDir, "test-repo")
 
 	// Configure fetch refspec
-	bareDir := filepath.Join(projectDir, ".bare")
+	bareDir := filepath.Join(projectDir, ".git")
 	cmd := exec.Command("git", "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
 	cmd.Dir = bareDir
 	_ = cmd.Run()
@@ -222,7 +222,7 @@ func TestAddLocalBranchPriority(t *testing.T) {
 	projectDir := filepath.Join(tempDir, "test-repo")
 
 	// Configure fetch refspec and fetch
-	bareDir := filepath.Join(projectDir, ".bare")
+	bareDir := filepath.Join(projectDir, ".git")
 	cmd := exec.Command("git", "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
 	cmd.Dir = bareDir
 	_ = cmd.Run()

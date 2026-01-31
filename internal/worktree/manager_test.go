@@ -10,11 +10,9 @@ import (
 
 func TestIsManaged(t *testing.T) {
 	repoRoot := "/home/user/project"
-	bareDir := "/home/user/project/.bare"
+	bareDir := "/home/user/project/.git"
 	cfg := &config.Config{
-		Repository: config.Repository{
-			BareDir: ".bare",
-		},
+		Repository: config.Repository{},
 	}
 
 	mgr := &Manager{
@@ -50,7 +48,7 @@ func TestIsManaged(t *testing.T) {
 		},
 		{
 			name:         "bare directory itself",
-			worktreePath: "/home/user/project/.bare",
+			worktreePath: "/home/user/project/.git",
 			expected:     false,
 		},
 	}
@@ -93,9 +91,7 @@ func TestSharedConfigApply(t *testing.T) {
 
 	// Create config with shared files
 	cfg := &config.Config{
-		Repository: config.Repository{
-			BareDir: ".bare",
-		},
+		Repository: config.Repository{},
 		Shared: []config.Shared{
 			{Source: ".env", Type: "symlink"},
 		},

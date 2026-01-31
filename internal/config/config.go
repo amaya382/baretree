@@ -45,9 +45,6 @@ func ImportConfigFromTOML(data string) (*Config, error) {
 	}
 
 	// Set defaults if not specified
-	if config.Repository.BareDir == "" {
-		config.Repository.BareDir = ".bare"
-	}
 	if config.Repository.DefaultBranch == "" {
 		config.Repository.DefaultBranch = "main"
 	}

@@ -95,7 +95,6 @@ func runImport(cmd *cobra.Command, args []string) error {
 	fmt.Println("Importing configuration:")
 	fmt.Println()
 	fmt.Println("[repository]")
-	fmt.Printf("  bare_dir:       %s\n", importedCfg.Repository.BareDir)
 	fmt.Printf("  default_branch: %s\n", importedCfg.Repository.DefaultBranch)
 	fmt.Println()
 	fmt.Printf("[shared] (%d entries)\n", len(importedCfg.Shared))

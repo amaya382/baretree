@@ -84,6 +84,13 @@ Repository migration tests.
 | `TestMigrate_PreservesEmptyDirectories` | Empty directory preservation |
 | `TestMigrate_WithSubmodule` | Git submodule preservation |
 | `TestMigrate_WithSubmodule_InPlace` | Submodule preservation in in-place migration |
+| `TestMigrate_ToRoot_WithSubmodule` | Submodule preservation with `--to-root` migration |
+| `TestMigrate_WithMultipleSubmodules` | Multiple submodules preservation |
+| `TestMigrate_WithMultipleSubmodules_InPlace` | Multiple submodules in in-place migration |
+| `TestMigrate_WithNestedSubmodule` | Nested submodules (submodule within submodule) preservation |
+| `TestMigrate_WithNestedSubmodule_InPlace` | Nested submodules in in-place migration |
+| `TestMigrate_WithExternalWorktreesAndSubmodule` | Migration with both external worktrees and submodules |
+| `TestMigrate_WithExternalWorktreesAndSubmodule_InPlace` | In-place migration with external worktrees and submodules |
 | `TestMigrate_Destination_CustomWorktreeName` | Migration with custom worktree directory name (different from branch) |
 | `TestMigrate_ToRoot_WithExternalWorktrees` | `--to-root` migration of regular git repo with external worktrees |
 | `TestMigrate_ToRoot_DeepHierarchicalBranch` | `--to-root` with deep hierarchical branch names (3+ levels) |
@@ -172,6 +179,9 @@ Conversion from baretree to regular repository tests.
 | `TestUnbare_PreservesSubdirectoryFiles` | Subdirectory file preservation |
 | `TestUnbare_PreservesEmptyDirectories` | Empty directory preservation |
 | `TestUnbare_WithSubmodule` | Git submodule preservation |
+| `TestUnbare_WithMultipleSubmodules` | Multiple submodules preservation in unbare |
+| `TestUnbare_WithNestedSubmodule` | Nested submodules preservation in unbare |
+| `TestUnbare_SubmoduleOperations` | Submodule operations work after unbare |
 | `TestUnbare_DestinationExists` | Failure when destination already exists |
 
 ## Running Tests

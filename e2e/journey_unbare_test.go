@@ -3,6 +3,7 @@ package e2e
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -418,6 +419,160 @@ func TestUnbare_DestinationExists(t *testing.T) {
 	t.Run("fails if destination exists", func(t *testing.T) {
 		_, stderr := runBtFailure(t, repoDir, "unbare", "master", destDir)
 		assertOutputContains(t, stderr, "destination already exists")
+	})
+}
+
+// TestUnbare_WithMultipleSubmodules tests unbare with multiple submodules
+func TestUnbare_WithMultipleSubmodules(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	tempDir := createTempDir(t, "unbare-multi-submodule")
+
+	// Setup multiple submodule repos
+	submoduleRepo1 := filepath.Join(tempDir, "submodule-repo1")
+	setupGitRepo(t, submoduleRepo1)
+	writeFile(t, filepath.Join(submoduleRepo1, "lib1.txt"), "lib1 content")
+	runGitSuccess(t, submoduleRepo1, "add", ".")
+	runGitSuccess(t, submoduleRepo1, "commit", "-m", "Add lib1")
+
+	submoduleRepo2 := filepath.Join(tempDir, "submodule-repo2")
+	setupGitRepo(t, submoduleRepo2)
+	writeFile(t, filepath.Join(submoduleRepo2, "lib2.txt"), "lib2 content")
+	runGitSuccess(t, submoduleRepo2, "add", ".")
+	runGitSuccess(t, submoduleRepo2, "commit", "-m", "Add lib2")
+
+	// Setup main baretree repo with multiple submodules
+	repoDir := filepath.Join(tempDir, "main-repo")
+	setupGitRepo(t, repoDir)
+	runGitSuccess(t, repoDir, "-c", "protocol.file.allow=always", "submodule", "add", submoduleRepo1, "libs/lib1")
+	runGitSuccess(t, repoDir, "-c", "protocol.file.allow=always", "submodule", "add", submoduleRepo2, "vendor/lib2")
+	runGitSuccess(t, repoDir, "commit", "-m", "Add submodules")
+
+	// Migrate to baretree
+	runBtSuccess(t, repoDir, "repo", "migrate", ".", "-i")
+
+	t.Run("unbare preserves multiple submodules", func(t *testing.T) {
+		destDir := filepath.Join(tempDir, "standalone")
+		runBtSuccess(t, repoDir, "unbare", "master", destDir)
+
+		assertFileExists(t, filepath.Join(destDir, ".gitmodules"))
+		assertFileExists(t, filepath.Join(destDir, "libs", "lib1", "lib1.txt"))
+		assertFileContent(t, filepath.Join(destDir, "libs", "lib1", "lib1.txt"), "lib1 content")
+		assertFileExists(t, filepath.Join(destDir, "vendor", "lib2", "lib2.txt"))
+		assertFileContent(t, filepath.Join(destDir, "vendor", "lib2", "lib2.txt"), "lib2 content")
+	})
+
+	t.Run("submodule status shows all submodules", func(t *testing.T) {
+		destDir := filepath.Join(tempDir, "standalone")
+		stdout := runGitSuccess(t, destDir, "submodule", "status")
+		assertOutputContains(t, stdout, "libs/lib1")
+		assertOutputContains(t, stdout, "vendor/lib2")
+	})
+}
+
+// TestUnbare_WithNestedSubmodule tests unbare with nested submodules
+func TestUnbare_WithNestedSubmodule(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	tempDir := createTempDir(t, "unbare-nested-submodule")
+
+	// Setup inner submodule
+	innerSubmoduleRepo := filepath.Join(tempDir, "inner-submodule")
+	setupGitRepo(t, innerSubmoduleRepo)
+	writeFile(t, filepath.Join(innerSubmoduleRepo, "inner.txt"), "inner content")
+	runGitSuccess(t, innerSubmoduleRepo, "add", ".")
+	runGitSuccess(t, innerSubmoduleRepo, "commit", "-m", "Add inner")
+
+	// Setup outer submodule with inner submodule
+	outerSubmoduleRepo := filepath.Join(tempDir, "outer-submodule")
+	setupGitRepo(t, outerSubmoduleRepo)
+	writeFile(t, filepath.Join(outerSubmoduleRepo, "outer.txt"), "outer content")
+	runGitSuccess(t, outerSubmoduleRepo, "add", ".")
+	runGitSuccess(t, outerSubmoduleRepo, "commit", "-m", "Add outer")
+	runGitSuccess(t, outerSubmoduleRepo, "-c", "protocol.file.allow=always", "submodule", "add", innerSubmoduleRepo, "nested/inner")
+	runGitSuccess(t, outerSubmoduleRepo, "commit", "-m", "Add inner submodule")
+
+	// Setup main repo
+	repoDir := filepath.Join(tempDir, "main-repo")
+	setupGitRepo(t, repoDir)
+	runGitSuccess(t, repoDir, "-c", "protocol.file.allow=always", "submodule", "add", outerSubmoduleRepo, "libs/outer")
+	runGitSuccess(t, repoDir, "commit", "-m", "Add outer submodule")
+	runGitSuccess(t, repoDir, "-c", "protocol.file.allow=always", "submodule", "update", "--init", "--recursive")
+
+	// Migrate to baretree
+	runBtSuccess(t, repoDir, "repo", "migrate", ".", "-i")
+
+	t.Run("unbare preserves nested submodules", func(t *testing.T) {
+		destDir := filepath.Join(tempDir, "standalone")
+		runBtSuccess(t, repoDir, "unbare", "master", destDir)
+
+		// Check outer submodule
+		assertFileExists(t, filepath.Join(destDir, "libs", "outer", "outer.txt"))
+		assertFileContent(t, filepath.Join(destDir, "libs", "outer", "outer.txt"), "outer content")
+
+		// Check inner (nested) submodule
+		assertFileExists(t, filepath.Join(destDir, "libs", "outer", "nested", "inner", "inner.txt"))
+		assertFileContent(t, filepath.Join(destDir, "libs", "outer", "nested", "inner", "inner.txt"), "inner content")
+	})
+}
+
+// TestUnbare_SubmoduleOperations tests that submodule operations work after unbare
+func TestUnbare_SubmoduleOperations(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	tempDir := createTempDir(t, "unbare-submodule-ops")
+
+	// Setup submodule repo
+	submoduleRepo := filepath.Join(tempDir, "submodule-repo")
+	setupGitRepo(t, submoduleRepo)
+	writeFile(t, filepath.Join(submoduleRepo, "lib.txt"), "lib content")
+	runGitSuccess(t, submoduleRepo, "add", ".")
+	runGitSuccess(t, submoduleRepo, "commit", "-m", "Add lib")
+
+	// Setup main baretree repo with submodule
+	repoDir := filepath.Join(tempDir, "main-repo")
+	setupGitRepo(t, repoDir)
+	runGitSuccess(t, repoDir, "-c", "protocol.file.allow=always", "submodule", "add", submoduleRepo, "vendor/lib")
+	runGitSuccess(t, repoDir, "commit", "-m", "Add submodule")
+
+	// Migrate to baretree
+	runBtSuccess(t, repoDir, "repo", "migrate", ".", "-i")
+
+	// Unbare
+	destDir := filepath.Join(tempDir, "standalone")
+	runBtSuccess(t, repoDir, "unbare", "master", destDir)
+
+	t.Run("submodule status works", func(t *testing.T) {
+		stdout := runGitSuccess(t, destDir, "submodule", "status")
+		assertOutputContains(t, stdout, "vendor/lib")
+	})
+
+	t.Run("submodule foreach works", func(t *testing.T) {
+		stdout := runGitSuccess(t, destDir, "submodule", "foreach", "pwd")
+		assertOutputContains(t, stdout, "vendor/lib")
+	})
+
+	t.Run("submodule sync works", func(t *testing.T) {
+		runGitSuccess(t, destDir, "submodule", "sync")
+	})
+
+	t.Run("git operations in submodule work", func(t *testing.T) {
+		submoduleDir := filepath.Join(destDir, "vendor", "lib")
+		// Submodules are typically in detached HEAD state
+		stdout := runGitSuccess(t, submoduleDir, "status")
+		// Either detached HEAD or on branch master is acceptable
+		if !strings.Contains(stdout, "HEAD detached") && !strings.Contains(stdout, "On branch master") {
+			t.Errorf("expected submodule to be in detached HEAD or on branch master, got: %s", stdout)
+		}
+
+		stdout = runGitSuccess(t, submoduleDir, "log", "--oneline", "-1")
+		assertOutputContains(t, stdout, "Add lib")
 	})
 }
 

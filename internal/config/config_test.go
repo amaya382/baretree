@@ -10,8 +10,8 @@ import (
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
 
-	if cfg.Repository.BareDir != ".bare" {
-		t.Errorf("expected bare_dir '.bare', got %q", cfg.Repository.BareDir)
+	if cfg.Repository.DefaultBranch != "main" {
+		t.Errorf("expected default_branch 'main', got %q", cfg.Repository.DefaultBranch)
 	}
 
 	if len(cfg.Shared) != 0 {
@@ -43,10 +43,10 @@ func TestLoadConfig(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	// Create bare repository
-	createTestBareRepo(t, tempDir, ".bare")
+	createTestBareRepo(t, tempDir, ".git")
 
 	// Initialize config
-	if err := InitializeBaretreeConfig(tempDir, ".bare", "main"); err != nil {
+	if err := InitializeBaretreeConfig(tempDir, "main"); err != nil {
 		t.Fatalf("failed to initialize config: %v", err)
 	}
 
@@ -57,8 +57,8 @@ func TestLoadConfig(t *testing.T) {
 	}
 
 	// Verify values
-	if cfg.Repository.BareDir != ".bare" {
-		t.Errorf("expected bare_dir '.bare', got %q", cfg.Repository.BareDir)
+	if cfg.Repository.DefaultBranch != "main" {
+		t.Errorf("expected default_branch 'main', got %q", cfg.Repository.DefaultBranch)
 	}
 }
 
@@ -83,11 +83,10 @@ func TestSaveConfig(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	// Create bare repository first
-	createTestBareRepo(t, tempDir, ".bare")
+	createTestBareRepo(t, tempDir, ".git")
 
 	cfg := &Config{
 		Repository: Repository{
-			BareDir:       ".bare",
 			DefaultBranch: "main",
 		},
 		Shared: []Shared{
@@ -119,10 +118,10 @@ func TestFindRepoRoot(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	// Create bare repository
-	createTestBareRepo(t, tempDir, ".bare")
+	createTestBareRepo(t, tempDir, ".git")
 
 	// Initialize config
-	if err := InitializeBaretreeConfig(tempDir, ".bare", "main"); err != nil {
+	if err := InitializeBaretreeConfig(tempDir, "main"); err != nil {
 		t.Fatalf("failed to initialize config: %v", err)
 	}
 
@@ -159,7 +158,6 @@ func TestFindRepoRootNotFound(t *testing.T) {
 func TestExportImportTOML(t *testing.T) {
 	original := &Config{
 		Repository: Repository{
-			BareDir:       ".bare",
 			DefaultBranch: "main",
 		},
 		Shared: []Shared{

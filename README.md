@@ -24,7 +24,7 @@ baretree combines centralized repository management (inspired by [ghq](https://g
 ├── github.com/
 │   └── user/
 │       ├── my-app/                      # One repository
-│       │   ├── .bare/                   # Git data
+│       │   ├── .git/                    # Bare git repository
 │       │   ├── main/                    # main branch
 │       │   ├── feature/auth/            # feature/auth branch
 │       │   └── .shared/                 # Shared files (.env, etc.)

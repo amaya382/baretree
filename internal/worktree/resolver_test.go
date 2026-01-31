@@ -144,23 +144,21 @@ func TestResolverLogic(t *testing.T) {
 
 func TestManagerConfig(t *testing.T) {
 	cfg := &config.Config{
-		Repository: config.Repository{
-			BareDir: ".bare",
-		},
+		Repository: config.Repository{},
 		Shared: []config.Shared{
 			{Source: ".env", Type: "symlink"},
 			{Source: "node_modules", Type: "symlink"},
 		},
 	}
 
-	mgr := NewManager("/home/user/project", "/home/user/project/.bare", cfg)
+	mgr := NewManager("/home/user/project", "/home/user/project/.git", cfg)
 
 	if mgr.RepoRoot != "/home/user/project" {
 		t.Errorf("expected RepoRoot '/home/user/project', got %q", mgr.RepoRoot)
 	}
 
-	if mgr.BareDir != "/home/user/project/.bare" {
-		t.Errorf("expected BareDir '/home/user/project/.bare', got %q", mgr.BareDir)
+	if mgr.BareDir != "/home/user/project/.git" {
+		t.Errorf("expected BareDir '/home/user/project/.git', got %q", mgr.BareDir)
 	}
 
 	if len(mgr.Config.Shared) != 2 {

@@ -38,7 +38,7 @@ func TestIsBaretreeRepo(t *testing.T) {
 	}
 
 	// Create bare repository
-	createTestBareRepo(t, tempDir, ".bare")
+	createTestBareRepo(t, tempDir, ".git")
 
 	// With bare repo - should be true (baretree is identified by bare repo structure)
 	if !IsBaretreeRepo(tempDir) {
@@ -55,10 +55,10 @@ func TestFindRoot(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	// Create bare repository
-	createTestBareRepo(t, tempDir, ".bare")
+	createTestBareRepo(t, tempDir, ".git")
 
 	// Initialize config
-	if err := config.InitializeBaretreeConfig(tempDir, ".bare", "main"); err != nil {
+	if err := config.InitializeBaretreeConfig(tempDir, "main"); err != nil {
 		t.Fatalf("failed to initialize config: %v", err)
 	}
 
@@ -88,10 +88,10 @@ func TestGetBareRepoPath(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	// Create bare repository
-	barePath := createTestBareRepo(t, tempDir, ".bare")
+	barePath := createTestBareRepo(t, tempDir, ".git")
 
 	// Initialize config
-	if err := config.InitializeBaretreeConfig(tempDir, ".bare", "main"); err != nil {
+	if err := config.InitializeBaretreeConfig(tempDir, "main"); err != nil {
 		t.Fatalf("failed to initialize config: %v", err)
 	}
 

@@ -2,13 +2,13 @@
 
 ## Overview
 
-This project uses [baretree](https://github.com/amaya382/baretree) (`bt`) for git worktree management. Baretree organizes the repository around a bare repository (`.bare/`) with multiple worktrees for different branches.
+This project uses [baretree](https://github.com/amaya382/baretree) (`bt`) for git worktree management. Baretree organizes the repository around a bare repository (`.git/`) with multiple worktrees for different branches.
 
 **Repository Structure:**
 
 ```
 project/                       # Repository root
-├── .bare/                     # Bare git repository (git internals)
+├── .git/                      # Bare git repository (git internals)
 ├── .shared/                   # Shared files (symlinked across worktrees)
 ├── main/                      # Main branch worktree
 ├── feature/

@@ -32,16 +32,12 @@ func IsBaretreeRepo(path string) bool {
 	return config.IsBaretreeRepoGit(path)
 }
 
-// GetBareDirName returns the bare directory name (e.g., ".bare") for the repo
-func GetBareDirName(repoRoot string) (string, error) {
-	cfg, err := config.LoadConfig(repoRoot)
-	if err != nil {
-		return "", err
-	}
-	return cfg.Repository.BareDir, nil
+// GetBareDirName returns the bare directory name (.git) for the repo
+func GetBareDirName(repoRoot string) string {
+	return config.BareDir
 }
 
 // InitializeConfig initializes baretree configuration in the bare repository
-func InitializeConfig(repoRoot, bareDir, defaultBranch string) error {
-	return config.InitializeBaretreeConfig(repoRoot, bareDir, defaultBranch)
+func InitializeConfig(repoRoot, defaultBranch string) error {
+	return config.InitializeBaretreeConfig(repoRoot, defaultBranch)
 }

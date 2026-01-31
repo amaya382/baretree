@@ -62,7 +62,7 @@ go vet ./...
 
 1. **Bare repository foundation**: Unlike wtp, baretree uses bare repositories as the foundation
 2. **Branch-based directory structure**: `feature/auth` branch creates `feature/auth/` directory
-3. **Git-config based configuration**: Per-repository config stored in `.bare/config` under `[baretree]` section
+3. **Git-config based configuration**: Per-repository config stored in `.git/config` under `[baretree]` section
 4. **Shell function for `cd`**: Technical necessity for changing directory in parent shell
 
 ### Design Philosophy
@@ -70,10 +70,10 @@ go vet ./...
 1. **Config-less by default**: baretree should work out of the box without any configuration
    - Provide sensible defaults that work for most users
    - baretree itself is stateless - it relies on Git and filesystem state
-   - Per-repository state is stored in git-config (`[baretree]` section in `.bare/config`)
+   - Per-repository state is stored in git-config (`[baretree]` section in `.git/config`)
 
 2. **Git-config for all configuration**: Use git-config (`[baretree]` section) for all configuration
-   - Per-repository settings stored in `.bare/config`
+   - Per-repository settings stored in `.git/config`
    - Cross-repository settings (like root directory) in global `~/.gitconfig`
    - TOML format only used for `bt shared export/import` (portable configuration sharing)
    - Avoid external config files that duplicate Git's native mechanisms
@@ -190,12 +190,10 @@ Do not mark work as complete until all checks pass.
 
 ## Configuration
 
-Per-repository configuration is stored in git-config (`.bare/config`):
+Per-repository configuration is stored in git-config (`.git/config`):
 
 ```ini
 [baretree]
-    name = project-name
-    bareDir = .bare
     defaultBranch = main
 
 [baretree "shared"]

@@ -159,7 +159,7 @@ func TestRename_ErrorCases(t *testing.T) {
 		runBtSuccess(t, projectDir, "add", "-b", "feature/test")
 
 		// Manually rename branch to create inconsistency
-		bareDir := filepath.Join(projectDir, ".bare")
+		bareDir := filepath.Join(projectDir, ".git")
 		cmd := exec.Command("git", "branch", "-m", "feature/test", "different-name")
 		cmd.Dir = bareDir
 		_ = cmd.Run()

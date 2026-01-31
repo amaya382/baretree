@@ -109,7 +109,7 @@ branch refs/heads/main`,
 		},
 		{
 			name: "bare repository with worktrees",
-			input: `worktree /home/user/project/.bare
+			input: `worktree /home/user/project/.git
 HEAD abc1234567890abcdef1234567890abcdef123456
 bare
 
@@ -124,7 +124,7 @@ branch refs/heads/feature/auth
 `,
 			expected: []Worktree{
 				{
-					Path:   "/home/user/project/.bare",
+					Path:   "/home/user/project/.git",
 					Head:   "abc1234567890abcdef1234567890abcdef123456",
 					Branch: "",
 					IsMain: true,

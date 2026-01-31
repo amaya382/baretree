@@ -204,7 +204,7 @@ func TestSharedApply(t *testing.T) {
 	writeFile(t, filepath.Join(defaultDir, ".env"), "SECRET=value")
 
 	// Manually add to git-config (simulating manual config edit)
-	bareDir := filepath.Join(projectDir, ".bare")
+	bareDir := filepath.Join(projectDir, ".git")
 	setGitConfig(t, bareDir, "baretree.shared", ".env:symlink")
 
 	t.Run("apply applies config to existing worktrees", func(t *testing.T) {
@@ -248,7 +248,7 @@ func TestSharedApplyConflict(t *testing.T) {
 	writeFile(t, filepath.Join(featureDir, ".env"), "SECRET=feature")
 
 	// Manually add to git-config
-	bareDir := filepath.Join(projectDir, ".bare")
+	bareDir := filepath.Join(projectDir, ".git")
 	setGitConfig(t, bareDir, "baretree.shared", ".env:symlink")
 
 	t.Run("apply fails with conflict", func(t *testing.T) {

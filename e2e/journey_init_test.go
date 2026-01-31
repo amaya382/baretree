@@ -26,7 +26,7 @@ func TestJourney_Init(t *testing.T) {
 		// Verify structure
 		projectDir := filepath.Join(tempDir, "my-new-project")
 		assertFileExists(t, projectDir)
-		assertFileExists(t, filepath.Join(projectDir, ".bare"))
+		assertFileExists(t, filepath.Join(projectDir, ".git"))
 		assertFileExists(t, filepath.Join(projectDir, "main"))
 	})
 
@@ -100,7 +100,7 @@ func TestInit_CustomBranch(t *testing.T) {
 		assertFileExists(t, filepath.Join(projectDir, "develop"))
 
 		// Verify git-config has correct default branch
-		bareDir := filepath.Join(projectDir, ".bare")
+		bareDir := filepath.Join(projectDir, ".git")
 		defaultBranch := getGitConfig(t, bareDir, "baretree.defaultbranch")
 		if defaultBranch != "develop" {
 			t.Errorf("expected baretree.defaultbranch to be 'develop', got %q", defaultBranch)
@@ -122,7 +122,7 @@ func TestInit_InCurrentDirectory(t *testing.T) {
 		stdout := runBtSuccess(t, projectDir, "repo", "init")
 
 		assertOutputContains(t, stdout, "Successfully initialized")
-		assertFileExists(t, filepath.Join(projectDir, ".bare"))
+		assertFileExists(t, filepath.Join(projectDir, ".git"))
 		assertFileExists(t, filepath.Join(projectDir, "main"))
 	})
 }

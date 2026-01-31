@@ -20,7 +20,7 @@ func TestRepair_BranchAsSource(t *testing.T) {
 	runBtSuccess(t, projectDir, "add", "-b", "feature/test")
 
 	// Create inconsistency by renaming branch
-	bareDir := filepath.Join(projectDir, ".bare")
+	bareDir := filepath.Join(projectDir, ".git")
 	cmd := exec.Command("git", "branch", "-m", "feature/test", "feature/renamed")
 	cmd.Dir = bareDir
 	if err := cmd.Run(); err != nil {
@@ -65,7 +65,7 @@ func TestRepair_DirAsSource(t *testing.T) {
 	runBtSuccess(t, projectDir, "add", "-b", "feature/original")
 
 	// Create inconsistency by renaming branch
-	bareDir := filepath.Join(projectDir, ".bare")
+	bareDir := filepath.Join(projectDir, ".git")
 	cmd := exec.Command("git", "branch", "-m", "feature/original", "feature/renamed")
 	cmd.Dir = bareDir
 	if err := cmd.Run(); err != nil {
@@ -110,7 +110,7 @@ func TestRepair_SpecificWorktree(t *testing.T) {
 	runBtSuccess(t, projectDir, "add", "-b", "feature/two")
 
 	// Create inconsistency for feature/one only
-	bareDir := filepath.Join(projectDir, ".bare")
+	bareDir := filepath.Join(projectDir, ".git")
 	cmd := exec.Command("git", "branch", "-m", "feature/one", "feature/one-renamed")
 	cmd.Dir = bareDir
 	if err := cmd.Run(); err != nil {
@@ -144,7 +144,7 @@ func TestRepair_CurrentWorktree(t *testing.T) {
 	worktreeDir := filepath.Join(projectDir, "feature", "current")
 
 	// Create inconsistency by renaming branch
-	bareDir := filepath.Join(projectDir, ".bare")
+	bareDir := filepath.Join(projectDir, ".git")
 	cmd := exec.Command("git", "branch", "-m", "feature/current", "feature/current-renamed")
 	cmd.Dir = bareDir
 	if err := cmd.Run(); err != nil {
@@ -227,7 +227,7 @@ func TestRepair_MultipleInconsistencies(t *testing.T) {
 	runBtSuccess(t, projectDir, "add", "-b", "feature/three")
 
 	// Create inconsistencies for two worktrees
-	bareDir := filepath.Join(projectDir, ".bare")
+	bareDir := filepath.Join(projectDir, ".git")
 	cmd := exec.Command("git", "branch", "-m", "feature/one", "feature/one-renamed")
 	cmd.Dir = bareDir
 	_ = cmd.Run()

@@ -5,13 +5,13 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/amaya382/baretree/internal/config"
 	"github.com/amaya382/baretree/internal/git"
 	"github.com/amaya382/baretree/internal/repository"
 	"github.com/spf13/cobra"
 )
 
 var (
-	initBareDir       string
 	initDefaultBranch string
 )
 
@@ -20,7 +20,7 @@ var initCmd = &cobra.Command{
 	Short: "Create a new baretree repository [bt init]",
 	Long: `Create a new Git repository with baretree structure.
 
-This command creates a new bare repository (.bare) and sets up the baretree
+This command creates a new bare repository (.git) and sets up the baretree
 directory structure with a default branch worktree.
 
 If no directory is specified, the current directory is used.
@@ -34,7 +34,6 @@ Examples:
 }
 
 func init() {
-	initCmd.Flags().StringVar(&initBareDir, "bare-dir", ".bare", "Bare repository directory name")
 	initCmd.Flags().StringVarP(&initDefaultBranch, "branch", "b", "main", "Default branch name")
 }
 
@@ -81,7 +80,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("directory is already a git repository (use 'bt repo migrate' instead): %s", absTarget)
 	}
 
-	barePath := filepath.Join(absTarget, initBareDir)
+	barePath := filepath.Join(absTarget, config.BareDir)
 	defaultWorktreePath := filepath.Join(absTarget, initDefaultBranch)
 
 	// Check if bare directory already exists
@@ -114,7 +113,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 
 	// Initialize baretree config
-	if err := repository.InitializeBareRepo(absTarget, initBareDir, initDefaultBranch); err != nil {
+	if err := repository.InitializeBareRepo(absTarget, initDefaultBranch); err != nil {
 		return fmt.Errorf("failed to initialize baretree config: %w", err)
 	}
 

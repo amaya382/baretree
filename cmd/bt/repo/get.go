@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/amaya382/baretree/internal/config"
 	"github.com/amaya382/baretree/internal/git"
 	"github.com/amaya382/baretree/internal/global"
 	"github.com/amaya382/baretree/internal/repository"
@@ -14,7 +15,6 @@ import (
 
 var (
 	getBranch  string
-	getBareDir string
 	getShallow bool
 	getUpdate  bool
 )
@@ -44,7 +44,6 @@ Examples:
 
 func init() {
 	getCmd.Flags().StringVarP(&getBranch, "branch", "b", "", "Checkout specific branch")
-	getCmd.Flags().StringVar(&getBareDir, "bare-dir", "", "Bare repository directory name (default from config)")
 	getCmd.Flags().BoolVar(&getShallow, "shallow", false, "Perform a shallow clone")
 	getCmd.Flags().BoolVarP(&getUpdate, "update", "u", false, "Update existing repository")
 }
@@ -61,12 +60,6 @@ func runGet(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse repository: %w", err)
 	}
 
-	// Determine bare directory
-	bareDir := getBareDir
-	if bareDir == "" {
-		bareDir = ".bare"
-	}
-
 	// Build destination path: {root}/{host}/{user}/{repo}
 	destination := filepath.Join(cfg.PrimaryRoot(), repoPath.String())
 
@@ -75,7 +68,7 @@ func runGet(cmd *cobra.Command, args []string) error {
 		if !getUpdate {
 			return fmt.Errorf("repository already exists: %s (use -u to update)", destination)
 		}
-		return updateRepository(destination, bareDir)
+		return updateRepository(destination)
 	}
 
 	// Build clone URL
@@ -89,7 +82,7 @@ func runGet(cmd *cobra.Command, args []string) error {
 	}
 
 	// Clone as bare repository
-	barePath := filepath.Join(destination, bareDir)
+	barePath := filepath.Join(destination, config.BareDir)
 	fmt.Printf("Creating bare repository at %s...\n", barePath)
 
 	cloneArgs := []string{"--bare"}
@@ -119,7 +112,7 @@ func runGet(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Default branch: %s\n", defaultBranch)
 
 	// Initialize baretree config
-	if err := repository.InitializeBareRepo(destination, bareDir, defaultBranch); err != nil {
+	if err := repository.InitializeBareRepo(destination, defaultBranch); err != nil {
 		return fmt.Errorf("failed to initialize baretree config: %w", err)
 	}
 
@@ -144,8 +137,8 @@ func buildCloneURL(repoPath *url.RepoPath) string {
 	return fmt.Sprintf("git@%s:%s/%s.git", repoPath.Host, repoPath.User, repoPath.Repo)
 }
 
-func updateRepository(destination string, bareDir string) error {
-	barePath := filepath.Join(destination, bareDir)
+func updateRepository(destination string) error {
+	barePath := filepath.Join(destination, config.BareDir)
 
 	// Check if bare repository exists
 	if _, err := os.Stat(barePath); os.IsNotExist(err) {

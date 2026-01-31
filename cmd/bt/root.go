@@ -13,7 +13,7 @@ var showRootCmd = &cobra.Command{
 	Short: "Show the repository root directory path",
 	Long: `Show the root directory path of the current baretree repository.
 
-The root directory is the directory containing the .bare directory.
+The root directory is the directory containing the bare .git directory.
 
 Examples:
   bt root

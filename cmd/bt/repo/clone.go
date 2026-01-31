@@ -5,20 +5,20 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/amaya382/baretree/internal/config"
 	"github.com/amaya382/baretree/internal/git"
 	"github.com/amaya382/baretree/internal/repository"
 	"github.com/spf13/cobra"
 )
 
 var (
-	cloneBranch  string
-	cloneBareDir string
+	cloneBranch string
 )
 
 var cloneCmd = &cobra.Command{
 	Use:   "clone <repository-url> [destination]",
 	Short: "Clone a remote repository with baretree structure [bt clone]",
-	Long: `Clone a Git repository as a bare repository (.bare) and automatically create
+	Long: `Clone a Git repository as a bare repository (.git) and automatically create
 a worktree for the default branch. Initializes baretree configuration.
 
 Example:
@@ -31,7 +31,6 @@ Example:
 
 func init() {
 	cloneCmd.Flags().StringVarP(&cloneBranch, "branch", "b", "", "Checkout specific branch instead of default")
-	cloneCmd.Flags().StringVar(&cloneBareDir, "bare-dir", ".bare", "Bare repository directory name")
 }
 
 func runClone(cmd *cobra.Command, args []string) error {
@@ -64,7 +63,7 @@ func runClone(cmd *cobra.Command, args []string) error {
 	}
 
 	// Clone as bare repository
-	barePath := filepath.Join(absDestination, cloneBareDir)
+	barePath := filepath.Join(absDestination, config.BareDir)
 	fmt.Printf("Creating bare repository at %s...\n", barePath)
 
 	if err := git.Clone("--bare", repoURL, barePath); err != nil {
@@ -86,7 +85,7 @@ func runClone(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Default branch: %s\n", defaultBranch)
 
 	// Initialize baretree config
-	if err := repository.InitializeBareRepo(absDestination, cloneBareDir, defaultBranch); err != nil {
+	if err := repository.InitializeBareRepo(absDestination, defaultBranch); err != nil {
 		return fmt.Errorf("failed to initialize baretree config: %w", err)
 	}
 

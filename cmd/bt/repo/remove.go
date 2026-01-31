@@ -28,7 +28,7 @@ The repository can be specified as:
 
 This will permanently delete the entire repository directory including:
   - All worktrees
-  - The bare repository (.bare)
+  - The bare repository (.git)
   - All local branches and history
 
 Examples:

@@ -37,6 +37,8 @@ func TestJourney_Init(t *testing.T) {
 		stdout := runBtSuccess(t, projectDir, "list")
 
 		assertOutputContains(t, stdout, "main")
+		// Verify bare repository is not shown as detached
+		assertOutputNotContains(t, stdout, "detached")
 	})
 
 	// Step 3: Add feature branch
@@ -80,6 +82,8 @@ func TestJourney_Init(t *testing.T) {
 
 		assertOutputContains(t, stdout, "my-new-project")
 		assertOutputContains(t, stdout, "Worktrees")
+		// Verify bare repository is not shown as detached
+		assertOutputNotContains(t, stdout, "detached")
 	})
 }
 

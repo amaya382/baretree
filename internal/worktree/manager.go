@@ -150,13 +150,8 @@ func (m *Manager) List() ([]git.Worktree, error) {
 	// Filter out the bare repository and mark the default branch worktree
 	var worktrees []git.Worktree
 	for _, wt := range allWorktrees {
-		// Skip if the worktree path is the bare directory
-		if wt.Path == m.BareDir {
-			continue
-		}
-		// Also check by relative path comparison
-		relPath, err := filepath.Rel(m.RepoRoot, wt.Path)
-		if err == nil && relPath == config.BareDir {
+		// Skip bare repository
+		if wt.IsBare {
 			continue
 		}
 

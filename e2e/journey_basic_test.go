@@ -43,6 +43,8 @@ func TestJourney1_BasicWorkflow(t *testing.T) {
 
 		// Should contain at least one worktree marker
 		assertOutputContains(t, stdout, "@")
+		// Verify bare repository is not shown as detached
+		assertOutputNotContains(t, stdout, "detached")
 	})
 
 	// Step 3: Add feature branch worktree
@@ -85,6 +87,8 @@ func TestJourney1_BasicWorkflow(t *testing.T) {
 		assertOutputContains(t, stdout, "Repository Information")
 		assertOutputContains(t, stdout, "Worktrees")
 		assertOutputContains(t, stdout, "feature/auth")
+		// Verify bare repository is not shown as detached
+		assertOutputNotContains(t, stdout, "detached")
 	})
 }
 

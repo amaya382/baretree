@@ -1,0 +1,174 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: bt
+    main: ./cmd/bt
+    binary: bt
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+archives:
+  - id: default
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+    files:
+      - README.md
+      - LICENSE*
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+      - Merge pull request
+      - Merge branch
+
+release:
+  github:
+    owner: amaya382
+    name: baretree
+  draft: false
+  prerelease: auto
+  name_template: "v{{.Version}}"
+
+brews:
+  - name: baretree
+    homepage: "https://github.com/amaya382/baretree"
+    description: "Centralized repository management with powerful Git worktree support"
+    repository:
+      owner: amaya382
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    commit_msg_template: "Formula update for {{ .ProjectName }} version {{ .Tag }}"
+    directory: Formula
+    license: MIT
+    caveats: |
+      To enable shell completions and `cd` features, please restart your shell.
+    install: |
+      bin.install "bt"
+
+      # Bash completion (Lazy load)
+      (bash_completion/"bt").write <<~EOS
+        _bt_lazy_init() {
+          if [[ -z "${BT_SHELL_INIT_DONE:-}" ]]; then
+            local __bt_init
+            __bt_init="$(command bt shell-init bash 2>/dev/null)"
+            if [[ $? -eq 0 && -n "$__bt_init" ]]; then
+              eval "$__bt_init"
+              export BT_SHELL_INIT_DONE=1
+            fi
+          fi
+          if declare -F _bt_completion >/dev/null 2>&1; then
+            _bt_completion "$@"
+          fi
+        }
+        complete -o bashdefault -o default -o nospace -F _bt_lazy_init bt
+      EOS
+
+      # Zsh completion (Lazy load)
+      (zsh_completion/"_bt").write <<~EOS
+        #compdef bt
+        _bt_lazy_init() {
+          if [[ -z "${BT_SHELL_INIT_DONE:-}" ]]; then
+            local __bt_init
+            __bt_init="$(command bt shell-init zsh 2>/dev/null)"
+            if [[ $? -eq 0 && -n "$__bt_init" ]]; then
+              eval "$__bt_init"
+              export BT_SHELL_INIT_DONE=1
+            fi
+          fi
+          if typeset -f _bt_completion >/dev/null 2>&1; then
+            _bt_completion "$@"
+          fi
+        }
+        compdef _bt_lazy_init bt
+      EOS
+
+      (fish_completion/"bt.fish").write <<~'EOS'
+        function __bt_lazy_setup --on-event fish_prompt --description 'Lazy shell-init for bt'
+          functions -e __bt_lazy_setup
+
+          if not set -q BT_SHELL_INIT_DONE
+            command bt shell-init fish ^/dev/null | source
+            set -l __bt_status $status
+            if test $__bt_status -ne 0
+              return
+            end
+
+            set -gx BT_SHELL_INIT_DONE 1
+          end
+        end
+      EOS
+
+# scoops:
+#   - name: baretree
+#     homepage: "https://github.com/amaya382/baretree"
+#     description: "Git worktree management tool centered around bare repositories"
+#     license: MIT
+#     repository:
+#       owner: amaya382
+#       name: scoop-bucket
+#       branch: main
+#       token: "{{ .Env.SCOOP_BUCKET_GITHUB_TOKEN }}"
+#     commit_msg_template: "Scoop update for {{ .ProjectName }} version {{ .Tag }}"
+
+# snapcrafts:
+#   - id: bt
+#     name: baretree
+#     title: baretree
+#     summary: Git worktrees, organized
+#     description: |
+#       baretree makes Git worktrees practical for everyday use.
+#       Keep all your branches in one place, share files across
+#       worktrees, and switch contexts instantly.
+
+#       Features:
+#       - All worktrees in one directory
+#       - Branch names become paths (feature/auth → feature/auth/)
+#       - Shared files (.env, node_modules) linked automatically
+#       - Easy migration from existing repositories
+#     license: MIT
+#     grade: stable
+#     confinement: classic
+#     publish: true
+#     apps:
+#       bt:
+#         command: bt
+#         completer: completions/bt.bash

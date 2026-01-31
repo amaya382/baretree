@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(/home/amaya/work/baretree/main/bt repo cd:*)",
+      "Bash(git ls-remote:*)"
+    ]
+  }
+}

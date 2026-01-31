@@ -499,6 +499,71 @@ func TestMigrate_ToRoot_ExistingBaretree(t *testing.T) {
 	})
 }
 
+// TestMigrate_ToRoot_ExistingBaretreeWithHierarchicalWorktree tests migration of existing baretree with hierarchical worktrees
+func TestMigrate_ToRoot_ExistingBaretreeWithHierarchicalWorktree(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	tempDir := createTempDir(t, "migrate-toroot-hier")
+
+	// Setup: create a baretree repository with hierarchical worktree
+	sourceDir := filepath.Join(tempDir, "source-baretree")
+	baretreeRoot := filepath.Join(tempDir, "baretree-root")
+
+	// Create a regular git repo and migrate it in-place
+	setupGitRepoWithRemote(t, sourceDir, "git@github.com:testuser/hier-worktree.git")
+	runBtSuccess(t, sourceDir, "repo", "migrate", ".", "-i")
+
+	// Add a hierarchical worktree using git directly
+	runGitSuccess(t, sourceDir, "--git-dir=.bare", "worktree", "add", "feat/auth", "-b", "feat/auth")
+
+	// Add content to the hierarchical worktree
+	writeFile(t, filepath.Join(sourceDir, "feat", "auth", "auth.txt"), "auth feature content")
+	runGitSuccess(t, filepath.Join(sourceDir, "feat", "auth"), "add", "auth.txt")
+	runGitSuccess(t, filepath.Join(sourceDir, "feat", "auth"), "commit", "-m", "Add auth feature")
+
+	// Verify setup
+	assertFileExists(t, filepath.Join(sourceDir, "feat", "auth"))
+	assertFileExists(t, filepath.Join(sourceDir, ".bare", "worktrees", "auth"))
+
+	t.Run("migrate existing baretree with hierarchical worktree to root", func(t *testing.T) {
+		env := map[string]string{
+			"BARETREE_ROOT": baretreeRoot,
+		}
+		stdout, _, err := runBtWithEnv(t, sourceDir, env, "repo", "migrate", ".", "-r")
+		if err != nil {
+			t.Fatalf("migrate existing baretree with hierarchical worktree to root failed: %v", err)
+		}
+
+		assertOutputContains(t, stdout, "moved successfully")
+
+		// Check destination has baretree structure
+		destDir := filepath.Join(baretreeRoot, "github.com", "testuser", "hier-worktree")
+		assertFileExists(t, filepath.Join(destDir, ".bare"))
+		assertFileExists(t, filepath.Join(destDir, "master"))
+
+		// Hierarchical worktree should exist at correct location
+		assertFileExists(t, filepath.Join(destDir, "feat", "auth"))
+		assertFileContent(t, filepath.Join(destDir, "feat", "auth", "auth.txt"), "auth feature content")
+
+		// Original location should be removed
+		assertFileNotExists(t, sourceDir)
+	})
+
+	t.Run("hierarchical worktree is functional after move", func(t *testing.T) {
+		worktreeDir := filepath.Join(baretreeRoot, "github.com", "testuser", "hier-worktree", "feat", "auth")
+		stdout := runGitSuccess(t, worktreeDir, "status")
+		assertOutputContains(t, stdout, "On branch feat/auth")
+	})
+
+	t.Run("master worktree is functional after move", func(t *testing.T) {
+		worktreeDir := filepath.Join(baretreeRoot, "github.com", "testuser", "hier-worktree", "master")
+		stdout := runGitSuccess(t, worktreeDir, "status")
+		assertOutputContains(t, stdout, "On branch master")
+	})
+}
+
 // TestMigrate_ToRoot_PreservesState tests that --to-root preserves working tree state
 func TestMigrate_ToRoot_PreservesState(t *testing.T) {
 	if testing.Short() {
@@ -1085,5 +1150,293 @@ func TestMigrate_WithSubmodule_InPlace(t *testing.T) {
 		assertFileExists(t, filepath.Join(worktreeDir, "vendor", "lib", "sub.txt"))
 		assertFileContent(t, filepath.Join(worktreeDir, "vendor", "lib", "sub.txt"), "sub content")
 		assertFileExists(t, filepath.Join(repoDir, ".bare", "modules"))
+	})
+}
+
+// TestMigrate_Destination_CustomWorktreeName tests migration with custom worktree directory name
+func TestMigrate_Destination_CustomWorktreeName(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	tempDir := createTempDir(t, "migrate-custom-wt-name")
+
+	// Setup: create a git repository with custom worktree name (different from branch)
+	repoDir := filepath.Join(tempDir, "source-repo")
+	setupGitRepo(t, repoDir)
+
+	// Create a branch and worktree with custom name
+	runGitSuccess(t, repoDir, "branch", "my-feature")
+	worktreeDir := filepath.Join(tempDir, "custom-wt-name")
+	runGitSuccess(t, repoDir, "worktree", "add", worktreeDir, "my-feature")
+
+	// Add a file to verify migration
+	writeFile(t, filepath.Join(worktreeDir, "feature.txt"), "feature content")
+	runGitSuccess(t, worktreeDir, "add", "feature.txt")
+	runGitSuccess(t, worktreeDir, "commit", "-m", "Add feature file")
+
+	t.Run("migrate with destination handles custom worktree names", func(t *testing.T) {
+		destDir := filepath.Join(tempDir, "dest-repo")
+		runBtSuccess(t, repoDir, "repo", "migrate", ".", "-d", destDir)
+
+		// The worktree should be migrated using branch name, not custom directory name
+		assertFileExists(t, filepath.Join(destDir, "my-feature"))
+		assertFileContent(t, filepath.Join(destDir, "my-feature", "feature.txt"), "feature content")
+
+		// Verify the worktree is functional
+		stdout := runGitSuccess(t, filepath.Join(destDir, "my-feature"), "status")
+		assertOutputContains(t, stdout, "On branch my-feature")
+	})
+}
+
+// TestMigrate_ToRoot_WithExternalWorktrees tests --to-root with external worktrees
+func TestMigrate_ToRoot_WithExternalWorktrees(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	tempDir := createTempDir(t, "migrate-toroot-external")
+
+	// Setup: create a git repository with external worktrees
+	repoDir := filepath.Join(tempDir, "source-repo")
+	baretreeRoot := filepath.Join(tempDir, "baretree-root")
+	setupGitRepoWithRemote(t, repoDir, "git@github.com:testuser/external-wt.git")
+
+	// Create external worktree
+	runGitSuccess(t, repoDir, "branch", "feat/auth")
+	worktreeDir := filepath.Join(tempDir, "external-wt")
+	runGitSuccess(t, repoDir, "worktree", "add", worktreeDir, "feat/auth")
+
+	writeFile(t, filepath.Join(worktreeDir, "auth.txt"), "auth content")
+	runGitSuccess(t, worktreeDir, "add", "auth.txt")
+	runGitSuccess(t, worktreeDir, "commit", "-m", "Add auth file")
+
+	t.Run("migrate to root includes external worktrees", func(t *testing.T) {
+		env := map[string]string{
+			"BARETREE_ROOT": baretreeRoot,
+		}
+		stdout, _, err := runBtWithEnv(t, repoDir, env, "repo", "migrate", ".", "-r")
+		if err != nil {
+			t.Fatalf("migrate to root with external worktrees failed: %v", err)
+		}
+
+		assertOutputContains(t, stdout, "External worktrees to migrate: 1")
+
+		// Check destination has baretree structure with external worktree
+		destDir := filepath.Join(baretreeRoot, "github.com", "testuser", "external-wt")
+		assertFileExists(t, filepath.Join(destDir, ".bare"))
+		assertFileExists(t, filepath.Join(destDir, "master"))
+		assertFileExists(t, filepath.Join(destDir, "feat", "auth"))
+		assertFileContent(t, filepath.Join(destDir, "feat", "auth", "auth.txt"), "auth content")
+
+		// External worktree location should be removed
+		assertFileNotExists(t, worktreeDir)
+
+		// Original repository should be removed
+		assertFileNotExists(t, repoDir)
+	})
+
+	t.Run("external worktree is functional after move", func(t *testing.T) {
+		destDir := filepath.Join(baretreeRoot, "github.com", "testuser", "external-wt")
+		stdout := runGitSuccess(t, filepath.Join(destDir, "feat", "auth"), "status")
+		assertOutputContains(t, stdout, "On branch feat/auth")
+	})
+}
+
+// TestMigrate_ToRoot_DeepHierarchicalBranch tests --to-root with deep hierarchical branch names
+func TestMigrate_ToRoot_DeepHierarchicalBranch(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	tempDir := createTempDir(t, "migrate-toroot-deep")
+
+	// Setup
+	repoDir := filepath.Join(tempDir, "source-repo")
+	baretreeRoot := filepath.Join(tempDir, "baretree-root")
+	setupGitRepoWithRemote(t, repoDir, "git@github.com:testuser/deep-hier.git")
+
+	// Create deep hierarchical branch worktree
+	runGitSuccess(t, repoDir, "branch", "feat/auth/v2/experimental")
+	worktreeDir := filepath.Join(tempDir, "deep-wt")
+	runGitSuccess(t, repoDir, "worktree", "add", worktreeDir, "feat/auth/v2/experimental")
+
+	writeFile(t, filepath.Join(worktreeDir, "deep.txt"), "deep content")
+	runGitSuccess(t, worktreeDir, "add", "deep.txt")
+	runGitSuccess(t, worktreeDir, "commit", "-m", "Add deep file")
+
+	t.Run("migrate handles deep hierarchical branch names", func(t *testing.T) {
+		env := map[string]string{
+			"BARETREE_ROOT": baretreeRoot,
+		}
+		_, _, err := runBtWithEnv(t, repoDir, env, "repo", "migrate", ".", "-r")
+		if err != nil {
+			t.Fatalf("migrate with deep hierarchical branch failed: %v", err)
+		}
+
+		destDir := filepath.Join(baretreeRoot, "github.com", "testuser", "deep-hier")
+		assertFileExists(t, filepath.Join(destDir, "feat", "auth", "v2", "experimental"))
+		assertFileContent(t, filepath.Join(destDir, "feat", "auth", "v2", "experimental", "deep.txt"), "deep content")
+	})
+
+	t.Run("deep hierarchical worktree is functional", func(t *testing.T) {
+		destDir := filepath.Join(baretreeRoot, "github.com", "testuser", "deep-hier")
+		stdout := runGitSuccess(t, filepath.Join(destDir, "feat", "auth", "v2", "experimental"), "status")
+		assertOutputContains(t, stdout, "On branch feat/auth/v2/experimental")
+	})
+}
+
+// TestMigrate_ToRoot_MultipleHierarchicalWorktrees tests --to-root with multiple hierarchical worktrees
+func TestMigrate_ToRoot_MultipleHierarchicalWorktrees(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	tempDir := createTempDir(t, "migrate-toroot-multi-hier")
+
+	// Setup: create a baretree repository with multiple hierarchical worktrees
+	repoDir := filepath.Join(tempDir, "source-repo")
+	baretreeRoot := filepath.Join(tempDir, "baretree-root")
+	setupGitRepoWithRemote(t, repoDir, "git@github.com:testuser/multi-hier.git")
+	runBtSuccess(t, repoDir, "repo", "migrate", ".", "-i")
+
+	// Add multiple hierarchical worktrees
+	runGitSuccess(t, repoDir, "--git-dir=.bare", "worktree", "add", "feat/auth", "-b", "feat/auth")
+	runGitSuccess(t, repoDir, "--git-dir=.bare", "worktree", "add", "feat/billing", "-b", "feat/billing")
+	runGitSuccess(t, repoDir, "--git-dir=.bare", "worktree", "add", "fix/urgent/hotfix", "-b", "fix/urgent/hotfix")
+
+	writeFile(t, filepath.Join(repoDir, "feat", "auth", "auth.txt"), "auth")
+	writeFile(t, filepath.Join(repoDir, "feat", "billing", "billing.txt"), "billing")
+	writeFile(t, filepath.Join(repoDir, "fix", "urgent", "hotfix", "hotfix.txt"), "hotfix")
+
+	t.Run("migrate moves all hierarchical worktrees", func(t *testing.T) {
+		env := map[string]string{
+			"BARETREE_ROOT": baretreeRoot,
+		}
+		stdout, _, err := runBtWithEnv(t, repoDir, env, "repo", "migrate", ".", "-r")
+		if err != nil {
+			t.Fatalf("migrate with multiple hierarchical worktrees failed: %v", err)
+		}
+
+		assertOutputContains(t, stdout, "moved successfully")
+
+		destDir := filepath.Join(baretreeRoot, "github.com", "testuser", "multi-hier")
+		assertFileExists(t, filepath.Join(destDir, "feat", "auth", "auth.txt"))
+		assertFileExists(t, filepath.Join(destDir, "feat", "billing", "billing.txt"))
+		assertFileExists(t, filepath.Join(destDir, "fix", "urgent", "hotfix", "hotfix.txt"))
+	})
+
+	t.Run("all worktrees are functional", func(t *testing.T) {
+		destDir := filepath.Join(baretreeRoot, "github.com", "testuser", "multi-hier")
+
+		stdout := runGitSuccess(t, filepath.Join(destDir, "feat", "auth"), "status")
+		assertOutputContains(t, stdout, "On branch feat/auth")
+
+		stdout = runGitSuccess(t, filepath.Join(destDir, "feat", "billing"), "status")
+		assertOutputContains(t, stdout, "On branch feat/billing")
+
+		stdout = runGitSuccess(t, filepath.Join(destDir, "fix", "urgent", "hotfix"), "status")
+		assertOutputContains(t, stdout, "On branch fix/urgent/hotfix")
+	})
+}
+
+// TestMigrate_Destination_DetachedHead tests migration with detached HEAD worktree
+func TestMigrate_Destination_DetachedHead(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	tempDir := createTempDir(t, "migrate-detached")
+
+	// Setup
+	repoDir := filepath.Join(tempDir, "source-repo")
+	setupGitRepo(t, repoDir)
+
+	// Make a second commit
+	writeFile(t, filepath.Join(repoDir, "file1.txt"), "modified")
+	runGitSuccess(t, repoDir, "add", ".")
+	runGitSuccess(t, repoDir, "commit", "-m", "second commit")
+
+	// Get first commit hash and create detached worktree
+	firstCommit := runGitSuccess(t, repoDir, "rev-parse", "HEAD~1")
+	firstCommit = strings.TrimSpace(firstCommit)
+	worktreeDir := filepath.Join(tempDir, "detached-wt")
+	runGitSuccess(t, repoDir, "worktree", "add", worktreeDir, firstCommit)
+
+	// Add content to verify migration
+	writeFile(t, filepath.Join(worktreeDir, "detached.txt"), "detached content")
+
+	t.Run("migrate with destination handles detached HEAD", func(t *testing.T) {
+		destDir := filepath.Join(tempDir, "dest-repo")
+		runBtSuccess(t, repoDir, "repo", "migrate", ".", "-d", destDir)
+
+		// Check detached worktree exists
+		assertFileExists(t, filepath.Join(destDir, "detached"))
+		assertFileContent(t, filepath.Join(destDir, "detached", "detached.txt"), "detached content")
+
+		// Verify the worktree is in detached state
+		stdout := runGitSuccess(t, filepath.Join(destDir, "detached"), "status")
+		assertOutputContains(t, stdout, "Not currently on any branch")
+	})
+}
+
+// TestMigrate_ToRoot_PreservesWorkingStateWithHierarchicalWorktree tests state preservation
+func TestMigrate_ToRoot_PreservesWorkingStateWithHierarchicalWorktree(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	tempDir := createTempDir(t, "migrate-toroot-state")
+
+	// Setup
+	repoDir := filepath.Join(tempDir, "source-repo")
+	baretreeRoot := filepath.Join(tempDir, "baretree-root")
+	setupGitRepoWithRemote(t, repoDir, "git@github.com:testuser/state.git")
+
+	// Create hierarchical worktree
+	runGitSuccess(t, repoDir, "branch", "feat/auth")
+	worktreeDir := filepath.Join(tempDir, "external-wt")
+	runGitSuccess(t, repoDir, "worktree", "add", worktreeDir, "feat/auth")
+
+	// Create working state
+	writeFile(t, filepath.Join(worktreeDir, "committed.txt"), "committed")
+	runGitSuccess(t, worktreeDir, "add", "committed.txt")
+	runGitSuccess(t, worktreeDir, "commit", "-m", "committed file")
+
+	// Modify committed file (unstaged)
+	writeFile(t, filepath.Join(worktreeDir, "committed.txt"), "modified committed")
+
+	// Stage a new file
+	writeFile(t, filepath.Join(worktreeDir, "staged.txt"), "staged content")
+	runGitSuccess(t, worktreeDir, "add", "staged.txt")
+
+	// Create untracked file
+	writeFile(t, filepath.Join(worktreeDir, "untracked.txt"), "untracked content")
+
+	// Get original status
+	originalStatus := runGitSuccess(t, worktreeDir, "status", "--porcelain")
+
+	t.Run("migrate preserves working state in hierarchical worktree", func(t *testing.T) {
+		env := map[string]string{
+			"BARETREE_ROOT": baretreeRoot,
+		}
+		_, _, err := runBtWithEnv(t, repoDir, env, "repo", "migrate", ".", "-r")
+		if err != nil {
+			t.Fatalf("migrate failed: %v", err)
+		}
+
+		destDir := filepath.Join(baretreeRoot, "github.com", "testuser", "state")
+		newWorktree := filepath.Join(destDir, "feat", "auth")
+
+		// Check status matches
+		newStatus := runGitSuccess(t, newWorktree, "status", "--porcelain")
+		if originalStatus != newStatus {
+			t.Errorf("working tree state not preserved\noriginal:\n%s\nmigrated:\n%s", originalStatus, newStatus)
+		}
+
+		// Verify file contents
+		assertFileContent(t, filepath.Join(newWorktree, "committed.txt"), "modified committed")
+		assertFileContent(t, filepath.Join(newWorktree, "staged.txt"), "staged content")
+		assertFileContent(t, filepath.Join(newWorktree, "untracked.txt"), "untracked content")
 	})
 }

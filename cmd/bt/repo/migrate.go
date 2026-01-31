@@ -708,7 +708,7 @@ func moveBaretreeRepo(absSource, absDestination string) error {
 		}
 
 		// Update worktree paths after copy
-		if err := updateWorktreePaths(absDestination); err != nil {
+		if err := updateWorktreePaths(absSource, absDestination); err != nil {
 			os.RemoveAll(absDestination)
 			return fmt.Errorf("failed to update worktree paths: %w", err)
 		}
@@ -719,7 +719,7 @@ func moveBaretreeRepo(absSource, absDestination string) error {
 		}
 	} else {
 		// Update worktree paths after move
-		if err := updateWorktreePaths(absDestination); err != nil {
+		if err := updateWorktreePaths(absSource, absDestination); err != nil {
 			// Try to move back on failure
 			if rollbackErr := os.Rename(absDestination, absSource); rollbackErr != nil {
 				return fmt.Errorf("failed to update worktree paths and also failed to roll back: %w / %w", err, rollbackErr)
@@ -735,13 +735,22 @@ func moveBaretreeRepo(absSource, absDestination string) error {
 }
 
 // updateWorktreePaths updates all worktree gitdir paths after moving a baretree repo
-func updateWorktreePaths(repoRoot string) error {
-	bareDir, err := findBareDir(repoRoot)
+func updateWorktreePaths(oldRepoRoot, newRepoRoot string) error {
+	newBareDir, err := findBareDir(newRepoRoot)
 	if err != nil {
 		return err
 	}
 
-	worktreesDir := filepath.Join(bareDir, "worktrees")
+	// Calculate the relative path of bare dir from repo root
+	relBareDir, err := filepath.Rel(newRepoRoot, newBareDir)
+	if err != nil {
+		return fmt.Errorf("failed to calculate relative bare dir path: %w", err)
+	}
+
+	// Calculate old bare dir path
+	oldBareDir := filepath.Join(oldRepoRoot, relBareDir)
+
+	worktreesDir := filepath.Join(newBareDir, "worktrees")
 	if _, err := os.Stat(worktreesDir); os.IsNotExist(err) {
 		return nil // No worktrees to update
 	}
@@ -756,20 +765,45 @@ func updateWorktreePaths(repoRoot string) error {
 			continue
 		}
 		worktreeName := entry.Name()
-		worktreeGitDir := filepath.Join(worktreesDir, worktreeName)
-		worktreePath := filepath.Join(repoRoot, worktreeName)
+		newWorktreeGitDir := filepath.Join(worktreesDir, worktreeName)
+		oldWorktreeGitDir := filepath.Join(oldBareDir, "worktrees", worktreeName)
+
+		// Read current gitdir file to get the old worktree path
+		gitdirFile := filepath.Join(newWorktreeGitDir, "gitdir")
+		oldGitdirContent, err := os.ReadFile(gitdirFile)
+		if err != nil {
+			return fmt.Errorf("failed to read gitdir for %s: %w", worktreeName, err)
+		}
+
+		// Parse the old worktree path from gitdir (remove trailing newline and "/.git" suffix)
+		oldWorktreeGitPath := strings.TrimSpace(string(oldGitdirContent))
+		oldWorktreePath := strings.TrimSuffix(oldWorktreeGitPath, "/.git")
+
+		// Handle relative paths by converting to absolute path based on OLD worktreeGitDir
+		if !filepath.IsAbs(oldWorktreePath) {
+			oldWorktreePath = filepath.Join(oldWorktreeGitDir, oldWorktreePath)
+			oldWorktreePath = filepath.Clean(oldWorktreePath)
+		}
+
+		// Calculate relative path from old repo root to the worktree
+		relWorktreePath, err := filepath.Rel(oldRepoRoot, oldWorktreePath)
+		if err != nil {
+			return fmt.Errorf("failed to calculate relative path for %s: %w", worktreeName, err)
+		}
+
+		// Calculate new worktree path
+		newWorktreePath := filepath.Join(newRepoRoot, relWorktreePath)
 
 		// Update gitdir file in bare repo's worktrees directory
-		gitdirFile := filepath.Join(worktreeGitDir, "gitdir")
-		newGitdir := filepath.Join(worktreePath, ".git") + "\n"
+		newGitdir := filepath.Join(newWorktreePath, ".git") + "\n"
 		if err := os.WriteFile(gitdirFile, []byte(newGitdir), 0644); err != nil {
 			return fmt.Errorf("failed to update gitdir for %s: %w", worktreeName, err)
 		}
 
 		// Update .git file in worktree directory
-		worktreeGitFile := filepath.Join(worktreePath, ".git")
+		worktreeGitFile := filepath.Join(newWorktreePath, ".git")
 		if _, err := os.Stat(worktreeGitFile); err == nil {
-			newContent := fmt.Sprintf("gitdir: %s\n", worktreeGitDir)
+			newContent := fmt.Sprintf("gitdir: %s\n", newWorktreeGitDir)
 			if err := os.WriteFile(worktreeGitFile, []byte(newContent), 0644); err != nil {
 				return fmt.Errorf("failed to update .git file for %s: %w", worktreeName, err)
 			}
@@ -794,7 +828,33 @@ func migrateToRootImpl(absSource, absDestination string) error {
 		return fmt.Errorf("failed to get current branch: %w", err)
 	}
 
+	// Get existing worktrees before migration
+	output, err := executor.Execute("worktree", "list", "--porcelain")
+	if err != nil {
+		return fmt.Errorf("failed to list worktrees: %w", err)
+	}
+	existingWorktrees := git.ParseWorktreeList(output)
+
+	// Filter external worktrees (worktrees outside the source directory)
+	var externalWorktrees []git.Worktree
+	for _, wt := range existingWorktrees {
+		if wt.IsBare {
+			continue
+		}
+		// Check if worktree is external (outside absSource)
+		relPath, err := filepath.Rel(absSource, wt.Path)
+		if err != nil || strings.HasPrefix(relPath, "..") {
+			externalWorktrees = append(externalWorktrees, wt)
+		}
+	}
+
 	fmt.Printf("Current branch: %s\n", currentBranch)
+	if len(externalWorktrees) > 0 {
+		fmt.Printf("External worktrees to migrate: %d\n", len(externalWorktrees))
+		for _, wt := range externalWorktrees {
+			fmt.Printf("  - %s (%s)\n", wt.Branch, wt.Path)
+		}
+	}
 
 	// Create destination directory
 	if err := os.MkdirAll(filepath.Dir(absDestination), 0755); err != nil {
@@ -811,8 +871,8 @@ func migrateToRootImpl(absSource, absDestination string) error {
 		// Will remove original after successful migration
 	}
 
-	// Now perform in-place migration at destination (no external worktrees for --to-root)
-	if err := migrateInPlaceImpl(absDestination, currentBranch, migrateBareDir, nil); err != nil {
+	// Now perform in-place migration at destination with external worktrees
+	if err := migrateInPlaceImpl(absDestination, currentBranch, migrateBareDir, externalWorktrees); err != nil {
 		// Try to restore on failure
 		if rollbackErr := os.Rename(absDestination, absSource); rollbackErr != nil {
 			return fmt.Errorf("failed to migrate repository in place and also failed to roll back: %w / %w", err, rollbackErr)
@@ -901,36 +961,72 @@ func migrateExternalWorktreesWithCopy(repoRoot, barePath string, executor *git.E
 			return movedWorktrees, fmt.Errorf("failed to copy worktree %s: %w", wt.Branch, err)
 		}
 
-		// Set up worktree link in the new location
-		worktreeGitDir := filepath.Join(barePath, "worktrees", wt.Branch)
+		// Find the original worktree git directory name from the source .git file
+		srcGitFile := filepath.Join(wt.Path, ".git")
+		srcGitContent, err := os.ReadFile(srcGitFile)
+		if err != nil {
+			return movedWorktrees, fmt.Errorf("failed to read .git file for %s: %w", wt.Branch, err)
+		}
+		srcGitDir := strings.TrimSpace(strings.TrimPrefix(string(srcGitContent), "gitdir:"))
+		srcWorktreeName := filepath.Base(srcGitDir) // e.g., "auth" or "custom-wt-name"
 
-		// The worktree git dir should already exist from the bare repo copy
-		// but we need to update the paths
-		if err := os.MkdirAll(worktreeGitDir, 0755); err != nil {
-			return movedWorktrees, fmt.Errorf("failed to create worktree git dir for %s: %w", wt.Branch, err)
+		// The source git directory was already copied to barePath/worktrees/{srcWorktreeName}
+		// We need to use this existing directory and update its paths
+		srcWorktreeGitDir := filepath.Join(barePath, "worktrees", srcWorktreeName)
+
+		// New worktree git directory (using branch name for baretree convention)
+		newWorktreeGitDir := filepath.Join(barePath, "worktrees", wt.Branch)
+
+		// If source and destination git dirs are different, we need to rename/restructure
+		if srcWorktreeGitDir != newWorktreeGitDir {
+			// Create parent directories for hierarchical branch names
+			if err := os.MkdirAll(filepath.Dir(newWorktreeGitDir), 0755); err != nil {
+				return movedWorktrees, fmt.Errorf("failed to create parent directory for git dir %s: %w", wt.Branch, err)
+			}
+
+			// Move the existing git directory to the new location
+			if _, err := os.Stat(srcWorktreeGitDir); err == nil {
+				if err := os.Rename(srcWorktreeGitDir, newWorktreeGitDir); err != nil {
+					// If rename fails, copy instead
+					if err := copyDir(srcWorktreeGitDir, newWorktreeGitDir); err != nil {
+						return movedWorktrees, fmt.Errorf("failed to move worktree git dir for %s: %w", wt.Branch, err)
+					}
+					os.RemoveAll(srcWorktreeGitDir)
+				}
+			} else {
+				// Source git dir doesn't exist, create new one
+				if err := os.MkdirAll(newWorktreeGitDir, 0755); err != nil {
+					return movedWorktrees, fmt.Errorf("failed to create worktree git dir for %s: %w", wt.Branch, err)
+				}
+			}
 		}
 
 		// Create/update .git file in worktree
-		gitFileContent := fmt.Sprintf("gitdir: %s\n", worktreeGitDir)
+		gitFileContent := fmt.Sprintf("gitdir: %s\n", newWorktreeGitDir)
 		if err := os.WriteFile(filepath.Join(targetPath, ".git"), []byte(gitFileContent), 0644); err != nil {
 			return movedWorktrees, fmt.Errorf("failed to create .git file for %s: %w", wt.Branch, err)
 		}
 
 		// Update commondir file
-		relBare, _ := filepath.Rel(worktreeGitDir, barePath)
-		if err := os.WriteFile(filepath.Join(worktreeGitDir, "commondir"), []byte(relBare+"\n"), 0644); err != nil {
+		relBare, _ := filepath.Rel(newWorktreeGitDir, barePath)
+		if err := os.WriteFile(filepath.Join(newWorktreeGitDir, "commondir"), []byte(relBare+"\n"), 0644); err != nil {
 			return movedWorktrees, fmt.Errorf("failed to create commondir for %s: %w", wt.Branch, err)
 		}
 
 		// Update gitdir file
 		absTargetPath, _ := filepath.Abs(targetPath)
-		if err := os.WriteFile(filepath.Join(worktreeGitDir, "gitdir"), []byte(absTargetPath+"/.git\n"), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(newWorktreeGitDir, "gitdir"), []byte(absTargetPath+"/.git\n"), 0644); err != nil {
 			return movedWorktrees, fmt.Errorf("failed to create gitdir for %s: %w", wt.Branch, err)
 		}
 
-		// Create/update HEAD file
-		if err := os.WriteFile(filepath.Join(worktreeGitDir, "HEAD"), []byte("ref: refs/heads/"+wt.Branch+"\n"), 0644); err != nil {
-			return movedWorktrees, fmt.Errorf("failed to create HEAD for %s: %w", wt.Branch, err)
+		// Update HEAD file (preserve detached state if applicable)
+		if wt.Branch == "detached" {
+			// For detached HEAD, keep the existing HEAD file (it contains the commit hash)
+			// The HEAD was already copied from source
+		} else {
+			if err := os.WriteFile(filepath.Join(newWorktreeGitDir, "HEAD"), []byte("ref: refs/heads/"+wt.Branch+"\n"), 0644); err != nil {
+				return movedWorktrees, fmt.Errorf("failed to create HEAD for %s: %w", wt.Branch, err)
+			}
 		}
 
 		movedWorktrees = append(movedWorktrees, targetPath)

@@ -48,8 +48,12 @@ baretree combines centralized repository management (inspired by [ghq](https://g
 # Homebrew (macOS/Linux)
 brew install amaya382/tap/baretree
 
-# From source
-go install github.com/amaya382/baretree/cmd/bt@latest
+# GitHub Release (download binary)
+# Download from https://github.com/amaya382/baretree/releases
+# Extract and add to your PATH
+# Example for Linux (amd64)
+curl -L https://github.com/amaya382/baretree/releases/latest/download/baretree_Linux_x86_64.tar.gz | tar xz
+sudo mv bt /usr/local/bin/
 ```
 
 ### 2. Shell Integration (required for `bt cd`)
@@ -279,8 +283,8 @@ git config --global baretree.root ~/code
 ```
 
 > [!TIP]
-> Set `BARETREE_ROOT=~/ghq` to use baretree alongside ghq.
-> Run `bt repo migrate . -i` to add worktree support in each repository.
+> Set baretree root to `~/ghq` to use baretree alongside ghq.
+> Run `bt repo migrate -i .` to add worktree support in each repository.
 
 ---
 
@@ -290,6 +294,20 @@ git config --global baretree.root ~/code
 
 ```bash
 brew install amaya382/tap/baretree
+```
+
+### GitHub Release (Binary)
+
+Download the latest binary from [GitHub Releases](https://github.com/amaya382/baretree/releases):
+
+```bash
+# Example for Linux (amd64)
+curl -L https://github.com/amaya382/baretree/releases/latest/download/baretree_Linux_x86_64.tar.gz | tar xz
+sudo mv bt /usr/local/bin/
+
+# Example for macOS (Apple Silicon)
+curl -L https://github.com/amaya382/baretree/releases/latest/download/baretree_Darwin_arm64.tar.gz | tar xz
+sudo mv bt /usr/local/bin/
 ```
 
 ### [In preparation] Snap (Linux)

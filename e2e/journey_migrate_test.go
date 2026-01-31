@@ -78,6 +78,40 @@ func TestMigrate_Destination(t *testing.T) {
 	})
 }
 
+// TestMigrate_Destination_RemoveSource tests migration with --destination and --remove-source flags
+func TestMigrate_Destination_RemoveSource(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	tempDir := createTempDir(t, "migrate-dest-remove")
+
+	// Setup: create a regular git repository
+	repoDir := filepath.Join(tempDir, "source-repo")
+	destDir := filepath.Join(tempDir, "dest-repo")
+	setupGitRepo(t, repoDir)
+
+	t.Run("migrate to destination with --remove-source removes original", func(t *testing.T) {
+		stdout := runBtSuccess(t, repoDir, "repo", "migrate", ".", "-d", destDir, "--remove-source")
+
+		assertOutputContains(t, stdout, "Migration successful")
+		assertOutputContains(t, stdout, "Original removed")
+
+		// Check destination has baretree structure
+		assertFileExists(t, filepath.Join(destDir, ".git"))
+		assertFileExists(t, filepath.Join(destDir, "master"))
+
+		// Original repository should be removed
+		assertFileNotExists(t, repoDir)
+	})
+
+	t.Run("destination worktree is functional", func(t *testing.T) {
+		worktreeDir := filepath.Join(destDir, "master")
+		stdout := runGitSuccess(t, worktreeDir, "status")
+		assertOutputContains(t, stdout, "On branch master")
+	})
+}
+
 // TestMigrate_PreservesWorkingTreeState tests that unstaged, staged, and untracked files are preserved
 func TestMigrate_PreservesWorkingTreeState(t *testing.T) {
 	if testing.Short() {
@@ -394,30 +428,66 @@ func TestMigrate_ToRoot(t *testing.T) {
 	baretreeRoot := filepath.Join(tempDir, "baretree-root")
 	setupGitRepoWithRemote(t, repoDir, "git@github.com:testuser/testrepo.git")
 
-	t.Run("migrate to root", func(t *testing.T) {
+	t.Run("migrate to root preserves original by default", func(t *testing.T) {
 		env := map[string]string{
 			"BARETREE_ROOT": baretreeRoot,
 		}
-		stdout, _, err := runBtWithEnv(t, repoDir, env, "repo", "migrate", ".", "-r")
+		stdout, _, err := runBtWithEnv(t, repoDir, env, "repo", "migrate", ".", "-m")
 		if err != nil {
 			t.Fatalf("migrate to root failed: %v", err)
 		}
 
 		assertOutputContains(t, stdout, "github.com/testuser/testrepo")
+		assertOutputContains(t, stdout, "Original repository preserved")
 
 		// Check destination has baretree structure
 		destDir := filepath.Join(baretreeRoot, "github.com", "testuser", "testrepo")
 		assertFileExists(t, filepath.Join(destDir, ".git"))
 		assertFileExists(t, filepath.Join(destDir, "master"))
 
-		// Original repository should be removed
-		assertFileNotExists(t, repoDir)
+		// Original repository should be preserved
+		assertFileExists(t, repoDir)
 	})
 
 	t.Run("destination worktree is functional", func(t *testing.T) {
 		worktreeDir := filepath.Join(baretreeRoot, "github.com", "testuser", "testrepo", "master")
 		stdout := runGitSuccess(t, worktreeDir, "status")
 		assertOutputContains(t, stdout, "On branch master")
+	})
+}
+
+// TestMigrate_ToRoot_RemoveSource tests migration with --to-root and --remove-source flags
+func TestMigrate_ToRoot_RemoveSource(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	tempDir := createTempDir(t, "migrate-toroot-remove")
+
+	// Setup: create a regular git repository with a remote
+	repoDir := filepath.Join(tempDir, "source-repo")
+	baretreeRoot := filepath.Join(tempDir, "baretree-root")
+	setupGitRepoWithRemote(t, repoDir, "git@github.com:testuser/testrepo-remove.git")
+
+	t.Run("migrate to root with --remove-source removes original", func(t *testing.T) {
+		env := map[string]string{
+			"BARETREE_ROOT": baretreeRoot,
+		}
+		stdout, _, err := runBtWithEnv(t, repoDir, env, "repo", "migrate", ".", "-m", "--remove-source")
+		if err != nil {
+			t.Fatalf("migrate to root with --remove-source failed: %v", err)
+		}
+
+		assertOutputContains(t, stdout, "github.com/testuser/testrepo-remove")
+		assertOutputContains(t, stdout, "Original removed")
+
+		// Check destination has baretree structure
+		destDir := filepath.Join(baretreeRoot, "github.com", "testuser", "testrepo-remove")
+		assertFileExists(t, filepath.Join(destDir, ".git"))
+		assertFileExists(t, filepath.Join(destDir, "master"))
+
+		// Original repository should be removed
+		assertFileNotExists(t, repoDir)
 	})
 }
 
@@ -434,24 +504,25 @@ func TestMigrate_ToRoot_WithPath(t *testing.T) {
 	baretreeRoot := filepath.Join(tempDir, "baretree-root")
 	setupGitRepo(t, repoDir)
 
-	t.Run("migrate to root with explicit path", func(t *testing.T) {
+	t.Run("migrate to root with explicit path preserves original", func(t *testing.T) {
 		env := map[string]string{
 			"BARETREE_ROOT": baretreeRoot,
 		}
-		stdout, _, err := runBtWithEnv(t, repoDir, env, "repo", "migrate", ".", "-r", "--path", "gitlab.com/myorg/myproject")
+		stdout, _, err := runBtWithEnv(t, repoDir, env, "repo", "migrate", ".", "-m", "--path", "gitlab.com/myorg/myproject")
 		if err != nil {
 			t.Fatalf("migrate to root with path failed: %v", err)
 		}
 
 		assertOutputContains(t, stdout, "gitlab.com/myorg/myproject")
+		assertOutputContains(t, stdout, "Original repository preserved")
 
 		// Check destination has baretree structure
 		destDir := filepath.Join(baretreeRoot, "gitlab.com", "myorg", "myproject")
 		assertFileExists(t, filepath.Join(destDir, ".git"))
 		assertFileExists(t, filepath.Join(destDir, "master"))
 
-		// Original repository should be removed
-		assertFileNotExists(t, repoDir)
+		// Original repository should be preserved
+		assertFileExists(t, repoDir)
 	})
 }
 
@@ -475,27 +546,28 @@ func TestMigrate_ToRoot_ExistingBaretree(t *testing.T) {
 	assertFileExists(t, filepath.Join(sourceDir, ".git"))
 	assertFileExists(t, filepath.Join(sourceDir, "master"))
 
-	t.Run("migrate existing baretree to root", func(t *testing.T) {
+	t.Run("migrate existing baretree to root preserves original", func(t *testing.T) {
 		env := map[string]string{
 			"BARETREE_ROOT": baretreeRoot,
 		}
-		stdout, _, err := runBtWithEnv(t, sourceDir, env, "repo", "migrate", ".", "-r")
+		stdout, _, err := runBtWithEnv(t, sourceDir, env, "repo", "migrate", ".", "-m")
 		if err != nil {
 			t.Fatalf("migrate existing baretree to root failed: %v", err)
 		}
 
-		assertOutputContains(t, stdout, "moved successfully")
+		assertOutputContains(t, stdout, "copied successfully")
+		assertOutputContains(t, stdout, "Original repository preserved")
 
 		// Check destination has baretree structure
 		destDir := filepath.Join(baretreeRoot, "github.com", "testuser", "existing-baretree")
 		assertFileExists(t, filepath.Join(destDir, ".git"))
 		assertFileExists(t, filepath.Join(destDir, "master"))
 
-		// Original location should be removed
-		assertFileNotExists(t, sourceDir)
+		// Original location should be preserved
+		assertFileExists(t, sourceDir)
 	})
 
-	t.Run("moved worktree is functional", func(t *testing.T) {
+	t.Run("copied worktree is functional", func(t *testing.T) {
 		worktreeDir := filepath.Join(baretreeRoot, "github.com", "testuser", "existing-baretree", "master")
 		stdout := runGitSuccess(t, worktreeDir, "status")
 		assertOutputContains(t, stdout, "On branch master")
@@ -530,16 +602,17 @@ func TestMigrate_ToRoot_ExistingBaretreeWithHierarchicalWorktree(t *testing.T) {
 	assertFileExists(t, filepath.Join(sourceDir, "feat", "auth"))
 	assertFileExists(t, filepath.Join(sourceDir, ".git", "worktrees", "auth"))
 
-	t.Run("migrate existing baretree with hierarchical worktree to root", func(t *testing.T) {
+	t.Run("migrate existing baretree with hierarchical worktree to root preserves original", func(t *testing.T) {
 		env := map[string]string{
 			"BARETREE_ROOT": baretreeRoot,
 		}
-		stdout, _, err := runBtWithEnv(t, sourceDir, env, "repo", "migrate", ".", "-r")
+		stdout, _, err := runBtWithEnv(t, sourceDir, env, "repo", "migrate", ".", "-m")
 		if err != nil {
 			t.Fatalf("migrate existing baretree with hierarchical worktree to root failed: %v", err)
 		}
 
-		assertOutputContains(t, stdout, "moved successfully")
+		assertOutputContains(t, stdout, "copied successfully")
+		assertOutputContains(t, stdout, "Original repository preserved")
 
 		// Check destination has baretree structure
 		destDir := filepath.Join(baretreeRoot, "github.com", "testuser", "hier-worktree")
@@ -550,17 +623,17 @@ func TestMigrate_ToRoot_ExistingBaretreeWithHierarchicalWorktree(t *testing.T) {
 		assertFileExists(t, filepath.Join(destDir, "feat", "auth"))
 		assertFileContent(t, filepath.Join(destDir, "feat", "auth", "auth.txt"), "auth feature content")
 
-		// Original location should be removed
-		assertFileNotExists(t, sourceDir)
+		// Original location should be preserved
+		assertFileExists(t, sourceDir)
 	})
 
-	t.Run("hierarchical worktree is functional after move", func(t *testing.T) {
+	t.Run("hierarchical worktree is functional after copy", func(t *testing.T) {
 		worktreeDir := filepath.Join(baretreeRoot, "github.com", "testuser", "hier-worktree", "feat", "auth")
 		stdout := runGitSuccess(t, worktreeDir, "status")
 		assertOutputContains(t, stdout, "On branch feat/auth")
 	})
 
-	t.Run("master worktree is functional after move", func(t *testing.T) {
+	t.Run("master worktree is functional after copy", func(t *testing.T) {
 		worktreeDir := filepath.Join(baretreeRoot, "github.com", "testuser", "hier-worktree", "master")
 		stdout := runGitSuccess(t, worktreeDir, "status")
 		assertOutputContains(t, stdout, "On branch master")
@@ -593,7 +666,7 @@ func TestMigrate_ToRoot_PreservesState(t *testing.T) {
 		env := map[string]string{
 			"BARETREE_ROOT": baretreeRoot,
 		}
-		_, _, err := runBtWithEnv(t, repoDir, env, "repo", "migrate", ".", "-r")
+		_, _, err := runBtWithEnv(t, repoDir, env, "repo", "migrate", ".", "-m")
 		if err != nil {
 			t.Fatalf("migrate to root failed: %v", err)
 		}
@@ -628,7 +701,7 @@ func TestMigrate_ToRoot_RequiresRemoteOrPath(t *testing.T) {
 		env := map[string]string{
 			"BARETREE_ROOT": baretreeRoot,
 		}
-		_, stderr, err := runBtWithEnv(t, repoDir, env, "repo", "migrate", ".", "-r")
+		_, stderr, err := runBtWithEnv(t, repoDir, env, "repo", "migrate", ".", "-m")
 		if err == nil {
 			t.Fatal("expected error but got success")
 		}
@@ -658,7 +731,7 @@ func TestMigrate_ToRoot_DestinationExists(t *testing.T) {
 		env := map[string]string{
 			"BARETREE_ROOT": baretreeRoot,
 		}
-		_, stderr, err := runBtWithEnv(t, repoDir, env, "repo", "migrate", ".", "-r")
+		_, stderr, err := runBtWithEnv(t, repoDir, env, "repo", "migrate", ".", "-m")
 		if err == nil {
 			t.Fatal("expected error but got success")
 		}
@@ -1214,16 +1287,17 @@ func TestMigrate_ToRoot_WithExternalWorktrees(t *testing.T) {
 	runGitSuccess(t, worktreeDir, "add", "auth.txt")
 	runGitSuccess(t, worktreeDir, "commit", "-m", "Add auth file")
 
-	t.Run("migrate to root includes external worktrees", func(t *testing.T) {
+	t.Run("migrate to root includes external worktrees and preserves original", func(t *testing.T) {
 		env := map[string]string{
 			"BARETREE_ROOT": baretreeRoot,
 		}
-		stdout, _, err := runBtWithEnv(t, repoDir, env, "repo", "migrate", ".", "-r")
+		stdout, _, err := runBtWithEnv(t, repoDir, env, "repo", "migrate", ".", "-m")
 		if err != nil {
 			t.Fatalf("migrate to root with external worktrees failed: %v", err)
 		}
 
 		assertOutputContains(t, stdout, "External worktrees to migrate: 1")
+		assertOutputContains(t, stdout, "Original repository preserved")
 
 		// Check destination has baretree structure with external worktree
 		destDir := filepath.Join(baretreeRoot, "github.com", "testuser", "external-wt")
@@ -1232,14 +1306,11 @@ func TestMigrate_ToRoot_WithExternalWorktrees(t *testing.T) {
 		assertFileExists(t, filepath.Join(destDir, "feat", "auth"))
 		assertFileContent(t, filepath.Join(destDir, "feat", "auth", "auth.txt"), "auth content")
 
-		// External worktree location should be removed
-		assertFileNotExists(t, worktreeDir)
-
-		// Original repository should be removed
-		assertFileNotExists(t, repoDir)
+		// Original repository should be preserved
+		assertFileExists(t, repoDir)
 	})
 
-	t.Run("external worktree is functional after move", func(t *testing.T) {
+	t.Run("external worktree is functional after copy", func(t *testing.T) {
 		destDir := filepath.Join(baretreeRoot, "github.com", "testuser", "external-wt")
 		stdout := runGitSuccess(t, filepath.Join(destDir, "feat", "auth"), "status")
 		assertOutputContains(t, stdout, "On branch feat/auth")
@@ -1272,7 +1343,7 @@ func TestMigrate_ToRoot_DeepHierarchicalBranch(t *testing.T) {
 		env := map[string]string{
 			"BARETREE_ROOT": baretreeRoot,
 		}
-		_, _, err := runBtWithEnv(t, repoDir, env, "repo", "migrate", ".", "-r")
+		_, _, err := runBtWithEnv(t, repoDir, env, "repo", "migrate", ".", "-m")
 		if err != nil {
 			t.Fatalf("migrate with deep hierarchical branch failed: %v", err)
 		}
@@ -1312,21 +1383,25 @@ func TestMigrate_ToRoot_MultipleHierarchicalWorktrees(t *testing.T) {
 	writeFile(t, filepath.Join(repoDir, "feat", "billing", "billing.txt"), "billing")
 	writeFile(t, filepath.Join(repoDir, "fix", "urgent", "hotfix", "hotfix.txt"), "hotfix")
 
-	t.Run("migrate moves all hierarchical worktrees", func(t *testing.T) {
+	t.Run("migrate copies all hierarchical worktrees and preserves original", func(t *testing.T) {
 		env := map[string]string{
 			"BARETREE_ROOT": baretreeRoot,
 		}
-		stdout, _, err := runBtWithEnv(t, repoDir, env, "repo", "migrate", ".", "-r")
+		stdout, _, err := runBtWithEnv(t, repoDir, env, "repo", "migrate", ".", "-m")
 		if err != nil {
 			t.Fatalf("migrate with multiple hierarchical worktrees failed: %v", err)
 		}
 
-		assertOutputContains(t, stdout, "moved successfully")
+		assertOutputContains(t, stdout, "copied successfully")
+		assertOutputContains(t, stdout, "Original repository preserved")
 
 		destDir := filepath.Join(baretreeRoot, "github.com", "testuser", "multi-hier")
 		assertFileExists(t, filepath.Join(destDir, "feat", "auth", "auth.txt"))
 		assertFileExists(t, filepath.Join(destDir, "feat", "billing", "billing.txt"))
 		assertFileExists(t, filepath.Join(destDir, "fix", "urgent", "hotfix", "hotfix.txt"))
+
+		// Original repository should be preserved
+		assertFileExists(t, repoDir)
 	})
 
 	t.Run("all worktrees are functional", func(t *testing.T) {
@@ -1423,7 +1498,7 @@ func TestMigrate_ToRoot_PreservesWorkingStateWithHierarchicalWorktree(t *testing
 		env := map[string]string{
 			"BARETREE_ROOT": baretreeRoot,
 		}
-		_, _, err := runBtWithEnv(t, repoDir, env, "repo", "migrate", ".", "-r")
+		_, _, err := runBtWithEnv(t, repoDir, env, "repo", "migrate", ".", "-m")
 		if err != nil {
 			t.Fatalf("migrate failed: %v", err)
 		}
@@ -1472,7 +1547,7 @@ func TestMigrate_ToRoot_WithSubmodule(t *testing.T) {
 		env := map[string]string{
 			"BARETREE_ROOT": baretreeRoot,
 		}
-		_, _, err := runBtWithEnv(t, repoDir, env, "repo", "migrate", ".", "-r")
+		_, _, err := runBtWithEnv(t, repoDir, env, "repo", "migrate", ".", "-m")
 		if err != nil {
 			t.Fatalf("migrate to root with submodule failed: %v", err)
 		}

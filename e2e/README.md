@@ -60,6 +60,7 @@ Repository migration tests.
 |-----------|--------------|
 | `TestMigrate_InPlace` | In-place migration with `-i` flag |
 | `TestMigrate_Destination` | Migration to another directory with `-d` flag |
+| `TestMigrate_Destination_RemoveSource` | Migration with `-d` and `--remove-source` to delete original |
 | `TestMigrate_PreservesWorkingTreeState` | Preserving unstaged/staged/untracked files |
 | `TestMigrate_PreservesWorkingTreeState_InPlace` | Working tree state preservation in in-place migration |
 | `TestMigrate_WithExistingWorktrees` | Automatic conversion of external worktrees during migration |
@@ -67,8 +68,9 @@ Repository migration tests.
 | `TestMigrate_WithMultipleExternalWorktrees` | Automatic conversion of multiple external worktrees |
 | `TestMigrate_WithHierarchicalBranchWorktree` | Migration with hierarchical branch names (e.g., feature/foo) |
 | `TestMigrate_RequiresFlag` | `-i` or `-d` flag is required |
-| `TestMigrate_ToRoot` | Migration to BARETREE_ROOT with `--to-root` |
-| `TestMigrate_ToRoot_WithPath` | Explicit path specification with `--to-root --path` |
+| `TestMigrate_ToRoot` | Migration to BARETREE_ROOT with `--to-managed` (preserves original by default) |
+| `TestMigrate_ToRoot_RemoveSource` | Migration with `--to-managed` and `--remove-source` to delete original |
+| `TestMigrate_ToRoot_WithPath` | Explicit path specification with `--to-managed --path` |
 | `TestMigrate_ToRoot_ExistingBaretree` | Moving existing baretree repository to root |
 | `TestMigrate_ToRoot_ExistingBaretreeWithHierarchicalWorktree` | Moving existing baretree with hierarchical worktrees to root |
 | `TestMigrate_ToRoot_PreservesState` | Working tree state preservation in root migration |
@@ -84,7 +86,7 @@ Repository migration tests.
 | `TestMigrate_PreservesEmptyDirectories` | Empty directory preservation |
 | `TestMigrate_WithSubmodule` | Git submodule preservation |
 | `TestMigrate_WithSubmodule_InPlace` | Submodule preservation in in-place migration |
-| `TestMigrate_ToRoot_WithSubmodule` | Submodule preservation with `--to-root` migration |
+| `TestMigrate_ToRoot_WithSubmodule` | Submodule preservation with `--to-managed` migration |
 | `TestMigrate_WithMultipleSubmodules` | Multiple submodules preservation |
 | `TestMigrate_WithMultipleSubmodules_InPlace` | Multiple submodules in in-place migration |
 | `TestMigrate_WithNestedSubmodule` | Nested submodules (submodule within submodule) preservation |
@@ -92,11 +94,11 @@ Repository migration tests.
 | `TestMigrate_WithExternalWorktreesAndSubmodule` | Migration with both external worktrees and submodules |
 | `TestMigrate_WithExternalWorktreesAndSubmodule_InPlace` | In-place migration with external worktrees and submodules |
 | `TestMigrate_Destination_CustomWorktreeName` | Migration with custom worktree directory name (different from branch) |
-| `TestMigrate_ToRoot_WithExternalWorktrees` | `--to-root` migration of regular git repo with external worktrees |
-| `TestMigrate_ToRoot_DeepHierarchicalBranch` | `--to-root` with deep hierarchical branch names (3+ levels) |
-| `TestMigrate_ToRoot_MultipleHierarchicalWorktrees` | `--to-root` with multiple hierarchical worktrees |
+| `TestMigrate_ToRoot_WithExternalWorktrees` | `--to-managed` migration of regular git repo with external worktrees |
+| `TestMigrate_ToRoot_DeepHierarchicalBranch` | `--to-managed` with deep hierarchical branch names (3+ levels) |
+| `TestMigrate_ToRoot_MultipleHierarchicalWorktrees` | `--to-managed` with multiple hierarchical worktrees |
 | `TestMigrate_Destination_DetachedHead` | Migration with detached HEAD worktree |
-| `TestMigrate_ToRoot_PreservesWorkingStateWithHierarchicalWorktree` | Working state preservation in hierarchical worktree during `--to-root` |
+| `TestMigrate_ToRoot_PreservesWorkingStateWithHierarchicalWorktree` | Working state preservation in hierarchical worktree during `--to-managed` |
 
 ### journey_remote_test.go
 

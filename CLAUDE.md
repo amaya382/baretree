@@ -188,6 +188,29 @@ Do not mark work as complete until all checks pass.
 3. Register in `cmd/bt/main.go` via `rootCmd.AddCommand()`
 4. Add tests in `e2e/` if appropriate
 
+## Modifying Commands with Aliases
+
+Some commands have aliases defined in `cmd/bt/repo/aliases.go`:
+
+| Original Command | Alias |
+|-----------------|-------|
+| `bt repo init` | `bt init` |
+| `bt repo clone` | `bt clone` |
+| `bt repo get` | `bt get` |
+| `bt repo list` | `bt repos` |
+| `bt repo cd` | `bt go` |
+| `bt repo migrate` | `bt migrate` |
+
+**Important**: When modifying a command that has an alias, you must update both:
+
+1. **Original command** (e.g., `cmd/bt/repo/migrate.go`)
+2. **Alias command** (in `cmd/bt/repo/aliases.go`)
+
+Ensure the following are synchronized:
+- **Flags**: All flags must be registered on both commands
+- **Help message (Long)**: Examples should use the appropriate command name (`bt migrate` for alias, `bt repo migrate` for original)
+- **Functionality**: Both commands share the same `RunE` function, so logic is automatically synchronized
+
 ## Configuration
 
 Per-repository configuration is stored in git-config (`.git/config`):

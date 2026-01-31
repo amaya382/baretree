@@ -16,10 +16,11 @@ import (
 )
 
 var (
-	migrateDestination string
-	migrateInPlace     bool
-	migrateToRoot      bool
-	migrateRepoPath    string
+	migrateDestination  string
+	migrateInPlace      bool
+	migrateToManaged    bool
+	migrateRepoPath     string
+	migrateRemoveSource bool
 )
 
 var migrateCmd = &cobra.Command{
@@ -33,24 +34,33 @@ This command:
   3. Preserves all working tree state (unstaged, staged, untracked files)
   4. Initializes baretree configuration in git-config
 
-You must specify one of --in-place, --destination, or --to-root:
+You must specify one of --in-place, --destination, or --to-managed:
   --in-place (-i): Replace the original repository in-place (recommended)
   --destination (-d): Create the baretree structure at a different location
-  --to-root (-r): Move to baretree root with ghq-style path (host/user/repo)
+  --to-managed (-m): Move to baretree managed directory with ghq-style path (host/user/repo)
 
-The --to-root option:
+The --to-managed option:
   - Automatically detects the destination path from git remote URL
   - Use --path to manually specify the path (e.g., github.com/user/repo)
   - Works with both regular Git repositories and existing baretree repositories
   - Existing baretree repositories are moved without re-conversion
 
+With --destination and --to-managed, the original repository is preserved by default.
+Use --remove-source to delete the original after successful migration.
+
 Examples:
-  bt repo migrate /path/to/existing-repo --in-place
-  bt repo migrate . -i
-  bt repo migrate ~/projects/myapp --destination ../my-project-baretree
+  # --to-managed: Move to baretree managed directory (e.g., ~/baretree/github.com/user/repo)
+  bt repo migrate ~/projects/myapp -m
+  bt repo migrate ~/projects/myapp -m --path github.com/user/myapp
+  bt repo migrate ~/projects/myapp -m --remove-source
+
+  # --in-place: Convert repository in current location
+  bt repo migrate ~/projects/myapp -i
+  bt repo migrate . --in-place
+
+  # --destination: Copy to a specific directory
   bt repo migrate ~/projects/myapp -d ~/baretree/myapp
-  bt repo migrate ~/projects/myapp --to-root
-  bt repo migrate ~/projects/myapp -r --path github.com/user/myapp`,
+  bt repo migrate ~/projects/myapp -d ../my-project-baretree --remove-source`,
 	Args: cobra.ExactArgs(1),
 	RunE: runMigrate,
 }
@@ -58,8 +68,9 @@ Examples:
 func init() {
 	migrateCmd.Flags().BoolVarP(&migrateInPlace, "in-place", "i", false, "Replace the original repository in-place (recommended)")
 	migrateCmd.Flags().StringVarP(&migrateDestination, "destination", "d", "", "Destination directory for the new baretree structure")
-	migrateCmd.Flags().BoolVarP(&migrateToRoot, "to-root", "r", false, "Move repository to baretree root with ghq-style path")
-	migrateCmd.Flags().StringVar(&migrateRepoPath, "path", "", "Repository path for --to-root (e.g., github.com/user/repo)")
+	migrateCmd.Flags().BoolVarP(&migrateToManaged, "to-managed", "m", false, "Move repository to baretree managed directory with ghq-style path")
+	migrateCmd.Flags().StringVarP(&migrateRepoPath, "path", "p", "", "Repository path for --to-managed (default: auto-detect from remote URL)")
+	migrateCmd.Flags().BoolVarP(&migrateRemoveSource, "remove-source", "r", false, "Remove the original repository after successful migration (only with -d or -m)")
 }
 
 func runMigrate(cmd *cobra.Command, args []string) error {
@@ -73,21 +84,26 @@ func runMigrate(cmd *cobra.Command, args []string) error {
 	if migrateDestination != "" {
 		modeCount++
 	}
-	if migrateToRoot {
+	if migrateToManaged {
 		modeCount++
 	}
 
 	// Validate that exactly one mode is specified
 	if modeCount == 0 {
-		return fmt.Errorf("you must specify one of --in-place (-i), --destination (-d), or --to-root (-r)")
+		return fmt.Errorf("you must specify one of --in-place (-i), --destination (-d), or --to-managed (-m)")
 	}
 	if modeCount > 1 {
 		return fmt.Errorf("cannot use multiple mode flags together")
 	}
 
-	// Validate --path is only used with --to-root
-	if migrateRepoPath != "" && !migrateToRoot {
-		return fmt.Errorf("--path can only be used with --to-root")
+	// Validate --path is only used with --to-managed
+	if migrateRepoPath != "" && !migrateToManaged {
+		return fmt.Errorf("--path can only be used with --to-managed")
+	}
+
+	// Validate --remove-source is only used with --destination or --to-managed
+	if migrateRemoveSource && migrateInPlace {
+		return fmt.Errorf("--remove-source cannot be used with --in-place")
 	}
 
 	// Convert to absolute path
@@ -96,8 +112,8 @@ func runMigrate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get absolute path: %w", err)
 	}
 
-	// Handle --to-root mode
-	if migrateToRoot {
+	// Handle --to-managed mode
+	if migrateToManaged {
 		return runMigrateToRoot(absSource)
 	}
 
@@ -462,12 +478,24 @@ func migrateToDestination(absSource, absDestination, currentBranch string, exter
 		fmt.Printf("  Worktree: %s\n", wt)
 	}
 	fmt.Printf("\nAll working tree state (unstaged, staged, untracked) has been preserved.\n")
-	fmt.Printf("\nOriginal repository preserved at: %s\n", absSource)
+
+	// Remove original if requested
+	if migrateRemoveSource {
+		fmt.Printf("Removing original repository...\n")
+		if err := os.RemoveAll(absSource); err != nil {
+			fmt.Printf("Warning: failed to remove original directory: %v\n", err)
+		} else {
+			fmt.Printf("  Original removed: %s\n", absSource)
+		}
+	} else {
+		fmt.Printf("\nOriginal repository preserved at: %s\n", absSource)
+		fmt.Printf("\nIf migration is successful, you can remove the original:\n")
+		fmt.Printf("  rm -rf %s\n", absSource)
+	}
+
 	fmt.Printf("\nNext steps:\n")
 	fmt.Printf("  cd %s\n", worktreePath)
 	fmt.Printf("  bt status\n")
-	fmt.Printf("\nIf migration is successful, you can remove the original:\n")
-	fmt.Printf("  rm -rf %s\n", absSource)
 
 	return nil
 }
@@ -609,11 +637,11 @@ func runMigrateToRoot(absSource string) error {
 
 	if isBaretree {
 		// Already a baretree repository - just move it
-		return moveBaretreeRepo(absSource, absDestination)
+		return moveBaretreeRepo(absSource, absDestination, migrateRemoveSource)
 	}
 
 	// Regular git repository - migrate and move
-	return migrateToRootImpl(absSource, absDestination)
+	return migrateToManagedImpl(absSource, absDestination, migrateRemoveSource)
 }
 
 // findBareDir finds the bare repository directory in a baretree repo
@@ -667,45 +695,41 @@ func startsWith(s, prefix string) bool {
 }
 
 // moveBaretreeRepo moves an existing baretree repository to a new location
-func moveBaretreeRepo(absSource, absDestination string) error {
+func moveBaretreeRepo(absSource, absDestination string, removeSource bool) error {
 	// Create parent directory
 	if err := os.MkdirAll(filepath.Dir(absDestination), 0755); err != nil {
 		return fmt.Errorf("failed to create destination parent directory: %w", err)
 	}
 
-	fmt.Printf("Moving baretree repository...\n")
+	fmt.Printf("Copying baretree repository...\n")
 
-	// Move the entire directory
-	if err := os.Rename(absSource, absDestination); err != nil {
-		// If rename fails (cross-device), fall back to copy+delete
-		fmt.Printf("Direct move failed, copying instead...\n")
-		if err := copyDir(absSource, absDestination); err != nil {
-			return fmt.Errorf("failed to copy repository: %w", err)
-		}
-
-		// Update worktree paths after copy
-		if err := updateWorktreePaths(absSource, absDestination); err != nil {
-			os.RemoveAll(absDestination)
-			return fmt.Errorf("failed to update worktree paths: %w", err)
-		}
-
-		// Remove original
-		if err := os.RemoveAll(absSource); err != nil {
-			fmt.Printf("Warning: failed to remove original directory: %v\n", err)
-		}
-	} else {
-		// Update worktree paths after move
-		if err := updateWorktreePaths(absSource, absDestination); err != nil {
-			// Try to move back on failure
-			if rollbackErr := os.Rename(absDestination, absSource); rollbackErr != nil {
-				return fmt.Errorf("failed to update worktree paths and also failed to roll back: %w / %w", err, rollbackErr)
-			}
-			return fmt.Errorf("failed to update worktree paths: %w", err)
-		}
+	// Copy the repository to destination
+	if err := copyDir(absSource, absDestination); err != nil {
+		return fmt.Errorf("failed to copy repository: %w", err)
 	}
 
-	fmt.Printf("\n✓ Repository moved successfully!\n")
+	// Update worktree paths after copy
+	if err := updateWorktreePaths(absSource, absDestination); err != nil {
+		os.RemoveAll(absDestination)
+		return fmt.Errorf("failed to update worktree paths: %w", err)
+	}
+
+	fmt.Printf("\n✓ Repository copied successfully!\n")
 	fmt.Printf("  New location: %s\n", absDestination)
+
+	// Remove original if requested
+	if removeSource {
+		fmt.Printf("Removing original repository...\n")
+		if err := os.RemoveAll(absSource); err != nil {
+			fmt.Printf("Warning: failed to remove original directory: %v\n", err)
+		} else {
+			fmt.Printf("  Original removed: %s\n", absSource)
+		}
+	} else {
+		fmt.Printf("\nOriginal repository preserved at: %s\n", absSource)
+		fmt.Printf("To remove the original, run:\n")
+		fmt.Printf("  rm -rf %s\n", absSource)
+	}
 
 	return nil
 }
@@ -789,8 +813,8 @@ func updateWorktreePaths(oldRepoRoot, newRepoRoot string) error {
 	return nil
 }
 
-// migrateToRootImpl migrates a regular git repository to baretree root
-func migrateToRootImpl(absSource, absDestination string) error {
+// migrateToManagedImpl migrates a regular git repository to baretree root
+func migrateToManagedImpl(absSource, absDestination string, removeSource bool) error {
 	// Check if it's already a bare repository
 	executor := git.NewExecutor(absSource)
 	isBare, _ := executor.Execute("rev-parse", "--is-bare-repository")
@@ -837,30 +861,31 @@ func migrateToRootImpl(absSource, absDestination string) error {
 		return fmt.Errorf("failed to create destination parent directory: %w", err)
 	}
 
-	// Move source to destination first
-	if err := os.Rename(absSource, absDestination); err != nil {
-		// If rename fails (cross-device), fall back to copy+delete
-		fmt.Printf("Direct move failed, copying instead...\n")
-		if err := copyDir(absSource, absDestination); err != nil {
-			return fmt.Errorf("failed to copy repository: %w", err)
-		}
-		// Will remove original after successful migration
+	// Copy source to destination
+	fmt.Printf("Copying repository to destination...\n")
+	if err := copyDir(absSource, absDestination); err != nil {
+		return fmt.Errorf("failed to copy repository: %w", err)
 	}
 
 	// Now perform in-place migration at destination with external worktrees
 	if err := migrateInPlaceImpl(absDestination, currentBranch, externalWorktrees); err != nil {
-		// Try to restore on failure
-		if rollbackErr := os.Rename(absDestination, absSource); rollbackErr != nil {
-			return fmt.Errorf("failed to migrate repository in place and also failed to roll back: %w / %w", err, rollbackErr)
-		}
+		// Clean up destination on failure
+		os.RemoveAll(absDestination)
 		return fmt.Errorf("failed to migrate repository in place: %w", err)
 	}
 
-	// If we copied instead of moved, remove the original
-	if _, err := os.Stat(absSource); err == nil {
+	// Remove original if requested
+	if removeSource {
+		fmt.Printf("Removing original repository...\n")
 		if err := os.RemoveAll(absSource); err != nil {
 			fmt.Printf("Warning: failed to remove original directory: %v\n", err)
+		} else {
+			fmt.Printf("  Original removed: %s\n", absSource)
 		}
+	} else {
+		fmt.Printf("\nOriginal repository preserved at: %s\n", absSource)
+		fmt.Printf("To remove the original, run:\n")
+		fmt.Printf("  rm -rf %s\n", absSource)
 	}
 
 	return nil

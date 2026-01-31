@@ -50,9 +50,18 @@ var MigrateAliasCmd = &cobra.Command{
 This is an alias for 'bt repo migrate'. See 'bt repo migrate --help' for details.
 
 Examples:
-  bt migrate /path/to/existing-repo --in-place
-  bt migrate . -i
-  bt migrate ~/projects/myapp --destination ../my-project-baretree`,
+  # --to-managed: Move to baretree managed directory (e.g., ~/baretree/github.com/user/repo)
+  bt migrate ~/projects/myapp -m
+  bt migrate ~/projects/myapp -m --path github.com/user/myapp
+  bt migrate ~/projects/myapp -m --remove-source
+
+  # --in-place: Convert repository in current location
+  bt migrate ~/projects/myapp -i
+  bt migrate . --in-place
+
+  # --destination: Copy to a specific directory
+  bt migrate ~/projects/myapp -d ~/baretree/myapp
+  bt migrate ~/projects/myapp -d ../my-project-baretree --remove-source`,
 	Args:               cobra.ExactArgs(1),
 	RunE:               runMigrate,
 	DisableFlagParsing: false,
@@ -118,8 +127,9 @@ func init() {
 
 	MigrateAliasCmd.Flags().BoolVarP(&migrateInPlace, "in-place", "i", false, "Replace the original repository in-place (recommended)")
 	MigrateAliasCmd.Flags().StringVarP(&migrateDestination, "destination", "d", "", "Destination directory for the new baretree structure")
-	MigrateAliasCmd.Flags().BoolVarP(&migrateToRoot, "to-root", "r", false, "Move repository to baretree root with ghq-style path")
-	MigrateAliasCmd.Flags().StringVar(&migrateRepoPath, "path", "", "Repository path for --to-root (e.g., github.com/user/repo)")
+	MigrateAliasCmd.Flags().BoolVarP(&migrateToManaged, "to-managed", "m", false, "Move repository to baretree managed directory with ghq-style path")
+	MigrateAliasCmd.Flags().StringVarP(&migrateRepoPath, "path", "p", "", "Repository path for --to-managed (default: auto-detect from remote URL)")
+	MigrateAliasCmd.Flags().BoolVarP(&migrateRemoveSource, "remove-source", "r", false, "Remove the original repository after successful migration (only with -d or -m)")
 
 	GetAliasCmd.Flags().StringVarP(&getBranch, "branch", "b", "", "Checkout specific branch")
 	GetAliasCmd.Flags().BoolVar(&getShallow, "shallow", false, "Perform a shallow clone")

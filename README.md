@@ -83,13 +83,14 @@ Choose your style: **Centralized** (recommended) or **Standalone**.
 
 Manage all repositories in a central location (`~/baretree` by default).
 
-#### Migrate existing repositories to baretree root
+#### Migrate existing repositories to baretree managed directory
 
 ```bash
 cd ~/projects/my-existing-repo
-bt migrate . --to-root
+bt migrate . --to-managed  # or -m
 # Your repo is now baretree-structured and placed under ~/baretree
 # Working tree state (staged, unstaged, untracked) is preserved
+# Original repository is preserved by default (use --remove-source to delete)
 bt go my-existing-repo
 ```
 
@@ -232,7 +233,7 @@ cp examples/rules/git_worktree_with_baretree.md .cursor/rules/
 | `bt repo get <url>` | `bt get` | Clone to baretree root (centralized-style) |
 | `bt repo list` | `bt repos` | List all managed repositories |
 | `bt repo cd <name>` | `bt go` | Jump to a repository |
-| `bt repo migrate <path> --to-root` | `bt migrate` | Migrate and move to baretree root |
+| `bt repo migrate <path> --to-managed` | `bt migrate` | Migrate and move to baretree managed directory |
 | `bt repo remove <name>` | `bt repo rm` | Remove a baretree repository |
 | `bt repo root` | | Show baretree root directory |
 | `bt repo config` | | Manage global configuration |

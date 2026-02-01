@@ -137,6 +137,10 @@ func runAdd(cmd *cobra.Command, args []string) error {
 			fmt.Printf("  bt cd %s\n", existsErr.BranchName)
 			return nil
 		}
+		var refConflictErr *worktree.ErrRefConflict
+		if errors.As(err, &refConflictErr) {
+			return refConflictErr
+		}
 		return fmt.Errorf("failed to add worktree: %w", err)
 	}
 

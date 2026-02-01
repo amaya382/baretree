@@ -38,6 +38,7 @@ Hierarchical branch name tests.
 | Test Case | Test Purpose |
 |-----------|--------------|
 | `TestJourney8_HierarchicalBranchNames` | Directory hierarchy creation for branch names with slashes |
+| `TestRefConflict` | User-friendly error for conflicting ref names (e.g., `feat` and `feat/child`) |
 | `TestPathOutput` | `list --paths` outputs paths only |
 
 ### journey_init_test.go

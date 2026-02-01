@@ -3,6 +3,7 @@ package worktree
 import (
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/amaya382/baretree/internal/config"
@@ -44,6 +45,18 @@ type ErrBranchNotFound struct {
 
 func (e *ErrBranchNotFound) Error() string {
 	return fmt.Sprintf("branch '%s' not found locally or on any remote", e.BranchName)
+}
+
+// ErrRefConflict is returned when a branch cannot be created due to Git ref naming conflict
+type ErrRefConflict struct {
+	BranchName     string
+	ConflictingRef string
+}
+
+func (e *ErrRefConflict) Error() string {
+	return fmt.Sprintf("cannot create branch '%s': conflicts with existing ref '%s'\n"+
+		"Git does not allow refs like '%s' and '%s/...' to coexist because refs are stored as files/directories",
+		e.BranchName, e.ConflictingRef, e.ConflictingRef, e.ConflictingRef)
 }
 
 // AddOptions contains options for adding a worktree
@@ -104,6 +117,10 @@ func (m *Manager) AddWithOptions(branchName string, opts AddOptions) (string, er
 
 	// Execute git worktree add
 	if _, err := m.Executor.Execute(args...); err != nil {
+		// Check for ref conflict error
+		if refErr := parseRefConflictError(err, branchName); refErr != nil {
+			return "", refErr
+		}
 		return "", fmt.Errorf("failed to add worktree: %w", err)
 	}
 
@@ -213,4 +230,30 @@ func (m *Manager) IsNestedInWorktree(worktreePath string, allWorktrees []string)
 		}
 	}
 	return false
+}
+
+// refConflictPattern matches Git's ref conflict error message
+// Example: "cannot lock ref 'refs/heads/feat/xxx': 'refs/heads/feat' exists"
+var refConflictPattern = regexp.MustCompile(`cannot lock ref 'refs/heads/([^']+)': '(refs/heads/[^']+)' exists`)
+
+// parseRefConflictError checks if the error is a Git ref conflict and returns a user-friendly error
+func parseRefConflictError(err error, branchName string) error {
+	if err == nil {
+		return nil
+	}
+
+	errStr := err.Error()
+	matches := refConflictPattern.FindStringSubmatch(errStr)
+	if matches == nil {
+		return nil
+	}
+
+	// matches[1] is the branch that couldn't be created (e.g., "feat/xxx")
+	// matches[2] is the conflicting ref (e.g., "refs/heads/feat")
+	conflictingRef := strings.TrimPrefix(matches[2], "refs/heads/")
+
+	return &ErrRefConflict{
+		BranchName:     branchName,
+		ConflictingRef: conflictingRef,
+	}
 }

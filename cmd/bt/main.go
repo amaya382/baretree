@@ -61,6 +61,10 @@ func init() {
 	// Disable the auto-generated completion command (use shell-init instead)
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 
+	// Disable Cobra's automatic error printing to avoid duplicate error messages
+	// Errors are printed manually in main()
+	rootCmd.SilenceErrors = true
+
 	// Add custom template function for displaying command name with aliases
 	cobra.AddTemplateFunc("nameWithAlias", NameWithAlias)
 

@@ -92,6 +92,69 @@ func TestJourney8_HierarchicalBranchNames(t *testing.T) {
 	})
 }
 
+// TestRefConflict tests that conflicting branch names show a user-friendly error
+// Git does not allow refs like "feat" and "feat/xxx" to coexist because refs are stored as files/directories
+func TestRefConflict(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	t.Run("parent ref exists when creating child", func(t *testing.T) {
+		tempDir := createTempDir(t, "ref-conflict-1")
+
+		runBtSuccess(t, tempDir, "repo", "clone", TestRepo, "conflict-test-1")
+		projectDir := filepath.Join(tempDir, "conflict-test-1")
+
+		// Create parent branch first
+		runBtSuccess(t, projectDir, "add", "-b", "feat")
+		assertFileExists(t, filepath.Join(projectDir, "feat"))
+
+		// Try to create child branch - should fail with user-friendly error
+		_, stderr := runBtExpectError(t, projectDir, "add", "-b", "feat/child")
+
+		// Check error message contains useful information
+		assertOutputContains(t, stderr, "feat")
+		assertOutputContains(t, stderr, "conflict")
+	})
+
+	t.Run("child ref exists when creating parent", func(t *testing.T) {
+		tempDir := createTempDir(t, "ref-conflict-2")
+
+		runBtSuccess(t, tempDir, "repo", "clone", TestRepo, "conflict-test-2")
+		projectDir := filepath.Join(tempDir, "conflict-test-2")
+
+		// Create child branch first
+		runBtSuccess(t, projectDir, "add", "-b", "feature/auth")
+		assertFileExists(t, filepath.Join(projectDir, "feature", "auth"))
+
+		// Try to create parent branch - should fail with user-friendly error
+		_, stderr := runBtExpectError(t, projectDir, "add", "-b", "feature")
+
+		// Check error message contains useful information
+		assertOutputContains(t, stderr, "feature")
+		assertOutputContains(t, stderr, "conflict")
+	})
+
+	t.Run("deeply nested conflict", func(t *testing.T) {
+		tempDir := createTempDir(t, "ref-conflict-3")
+
+		runBtSuccess(t, tempDir, "repo", "clone", TestRepo, "conflict-test-3")
+		projectDir := filepath.Join(tempDir, "conflict-test-3")
+
+		// Create deep branch first
+		runBtSuccess(t, projectDir, "add", "-b", "a/b/c")
+		assertFileExists(t, filepath.Join(projectDir, "a", "b", "c"))
+
+		// Try to create intermediate branch - should fail
+		_, stderr := runBtExpectError(t, projectDir, "add", "-b", "a/b")
+		assertOutputContains(t, stderr, "conflict")
+
+		// Try to create root branch - should fail
+		_, stderr = runBtExpectError(t, projectDir, "add", "-b", "a")
+		assertOutputContains(t, stderr, "conflict")
+	})
+}
+
 // TestPathOutput tests that bt list --paths outputs correct paths
 func TestPathOutput(t *testing.T) {
 	if testing.Short() {

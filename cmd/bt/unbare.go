@@ -113,6 +113,14 @@ func runUnbare(cmd *cobra.Command, args []string) error {
 
 	destExecutor := git.NewExecutor(absDestination)
 
+	// Checkout the branch BEFORE changing remotes
+	// (git checkout relies on origin/branch to create tracking branch)
+	fmt.Println("Checking out branch...")
+	if _, err := destExecutor.Execute("checkout", branchName); err != nil {
+		os.RemoveAll(absDestination)
+		return fmt.Errorf("failed to checkout branch: %w", err)
+	}
+
 	// Copy remote configuration from bare repository (replace origin which points to local bare)
 	fmt.Println("Copying remote configuration...")
 	bareExecutor := git.NewExecutor(bareDir)
@@ -134,13 +142,6 @@ func runUnbare(cmd *cobra.Command, args []string) error {
 				}
 			}
 		}
-	}
-
-	// Checkout the branch
-	fmt.Println("Checking out branch...")
-	if _, err := destExecutor.Execute("checkout", branchName); err != nil {
-		os.RemoveAll(absDestination)
-		return fmt.Errorf("failed to checkout branch: %w", err)
 	}
 
 	// Copy submodules if they exist

@@ -171,6 +171,9 @@ Post-create command tests.
 | `TestPostCreateAddCommand` | Command type configuration with `bt post-create add command` |
 | `TestPostCreateCommandExecution` | Command execution when creating worktree |
 | `TestPostCreateCommandFailure` | Graceful handling of command failures |
+| `TestPostCreateCommandWithSpaces` | Commands containing spaces (e.g., `echo hello world`) are handled correctly |
+| `TestPostCreateCommandWithChainedCommands` | Commands with `&&` and `;` operators are handled correctly |
+| `TestPostCreateCommandWithQuotes` | Commands containing double quotes are handled correctly |
 
 ### journey_unbare_test.go
 

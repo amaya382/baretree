@@ -368,6 +368,156 @@ func TestPostCreateCommandFailure(t *testing.T) {
 	})
 }
 
+// TestPostCreateCommandWithSpaces tests commands containing spaces are handled correctly
+func TestPostCreateCommandWithSpaces(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	tempDir := createTempDir(t, "postcreate-spaces")
+
+	// Clone a repository
+	runBtSuccess(t, tempDir, "repo", "clone", TestRepo, "my-project")
+	projectDir := filepath.Join(tempDir, "my-project")
+
+	t.Run("add command with spaces", func(t *testing.T) {
+		// Add command with multiple words (spaces)
+		stdout := runBtSuccess(t, projectDir, "post-create", "add", "command", "echo hello world")
+		assertOutputContains(t, stdout, "Post-create command added")
+	})
+
+	t.Run("list shows command with spaces correctly", func(t *testing.T) {
+		stdout := runBtSuccess(t, projectDir, "post-create", "list")
+		assertOutputContains(t, stdout, "echo hello world")
+	})
+
+	t.Run("command with spaces is executed correctly", func(t *testing.T) {
+		// Add another command that writes output to a file for verification
+		runBtSuccess(t, projectDir, "post-create", "add", "command", "echo spaces work > .spaces-test-output")
+
+		// Create worktree
+		runBtSuccess(t, projectDir, "add", "-b", "feature/spaces")
+
+		featureDir := filepath.Join(projectDir, "feature", "spaces")
+		outputPath := filepath.Join(featureDir, ".spaces-test-output")
+
+		// Verify the output file was created
+		assertFileExists(t, outputPath)
+
+		// Verify the content
+		content, err := os.ReadFile(outputPath)
+		if err != nil {
+			t.Fatalf("failed to read output file: %v", err)
+		}
+		if string(content) != "spaces work\n" {
+			t.Errorf("expected content 'spaces work\\n', got %q", string(content))
+		}
+	})
+}
+
+// TestPostCreateCommandWithChainedCommands tests commands with && and ; operators
+func TestPostCreateCommandWithChainedCommands(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	tempDir := createTempDir(t, "postcreate-chained")
+
+	// Clone a repository
+	runBtSuccess(t, tempDir, "repo", "clone", TestRepo, "my-project")
+	projectDir := filepath.Join(tempDir, "my-project")
+
+	t.Run("command with && operator", func(t *testing.T) {
+		// Add command with && operator
+		runBtSuccess(t, projectDir, "post-create", "add", "command", "echo first > .test-and && echo second >> .test-and")
+
+		// Create worktree
+		runBtSuccess(t, projectDir, "add", "-b", "feature/and-test")
+
+		featureDir := filepath.Join(projectDir, "feature", "and-test")
+		outputPath := filepath.Join(featureDir, ".test-and")
+
+		// Verify the output file was created
+		assertFileExists(t, outputPath)
+
+		// Verify both commands executed
+		content, err := os.ReadFile(outputPath)
+		if err != nil {
+			t.Fatalf("failed to read output file: %v", err)
+		}
+		expected := "first\nsecond\n"
+		if string(content) != expected {
+			t.Errorf("expected content %q, got %q", expected, string(content))
+		}
+	})
+
+	t.Run("command with semicolon operator", func(t *testing.T) {
+		// Add command with ; operator
+		runBtSuccess(t, projectDir, "post-create", "add", "command", "echo aaa > .test-semi; echo bbb >> .test-semi")
+
+		// Create worktree
+		runBtSuccess(t, projectDir, "add", "-b", "feature/semi-test")
+
+		featureDir := filepath.Join(projectDir, "feature", "semi-test")
+		outputPath := filepath.Join(featureDir, ".test-semi")
+
+		// Verify the output file was created
+		assertFileExists(t, outputPath)
+
+		// Verify both commands executed
+		content, err := os.ReadFile(outputPath)
+		if err != nil {
+			t.Fatalf("failed to read output file: %v", err)
+		}
+		expected := "aaa\nbbb\n"
+		if string(content) != expected {
+			t.Errorf("expected content %q, got %q", expected, string(content))
+		}
+	})
+}
+
+// TestPostCreateCommandWithQuotes tests commands containing double quotes
+func TestPostCreateCommandWithQuotes(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	tempDir := createTempDir(t, "postcreate-quotes")
+
+	// Clone a repository
+	runBtSuccess(t, tempDir, "repo", "clone", TestRepo, "my-project")
+	projectDir := filepath.Join(tempDir, "my-project")
+
+	t.Run("command with double quotes", func(t *testing.T) {
+		// Add command with double quotes
+		runBtSuccess(t, projectDir, "post-create", "add", "command", `echo "quoted text" > .test-quote`)
+
+		// Create worktree
+		runBtSuccess(t, projectDir, "add", "-b", "feature/quote-test")
+
+		featureDir := filepath.Join(projectDir, "feature", "quote-test")
+		outputPath := filepath.Join(featureDir, ".test-quote")
+
+		// Verify the output file was created
+		assertFileExists(t, outputPath)
+
+		// Verify the content preserves the quoted text
+		content, err := os.ReadFile(outputPath)
+		if err != nil {
+			t.Fatalf("failed to read output file: %v", err)
+		}
+		expected := "quoted text\n"
+		if string(content) != expected {
+			t.Errorf("expected content %q, got %q", expected, string(content))
+		}
+	})
+
+	t.Run("list shows command with quotes correctly", func(t *testing.T) {
+		stdout := runBtSuccess(t, projectDir, "post-create", "list")
+		assertOutputContains(t, stdout, `echo "quoted text"`)
+	})
+}
+
 // setGitConfig sets a git config value in the bare repository
 func setGitConfig(t *testing.T, bareDir, key, value string) {
 	t.Helper()

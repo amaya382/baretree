@@ -1335,4 +1335,3 @@ func copyWorktreeDir(src, dst string) error {
 
 	return nil
 }
-

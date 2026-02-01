@@ -1917,3 +1917,128 @@ func TestMigrate_WithExternalWorktreesAndSubmodule_InPlace(t *testing.T) {
 		assertFileNotExists(t, worktreeDir)
 	})
 }
+
+// TestMigrate_WithNestedBranchName_InPlace tests in-place migration when checked out to a nested branch like "feat/xxx"
+func TestMigrate_WithNestedBranchName_InPlace(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	tempDir := createTempDir(t, "migrate-nested-branch-inplace")
+
+	// Setup: create a regular git repository on a nested branch
+	repoDir := filepath.Join(tempDir, "test-repo")
+	setupGitRepo(t, repoDir)
+
+	// Create and checkout a nested branch
+	runGitSuccess(t, repoDir, "checkout", "-b", "feat/xxx")
+
+	t.Run("in-place migrate handles nested branch name", func(t *testing.T) {
+		stdout := runBtSuccess(t, repoDir, "repo", "migrate", ".", "-i")
+
+		assertOutputContains(t, stdout, "Migration successful")
+		assertOutputContains(t, stdout, "Current branch: feat/xxx")
+
+		// Check baretree structure was created with nested directory
+		assertFileExists(t, filepath.Join(repoDir, ".git"))
+		assertFileExists(t, filepath.Join(repoDir, "feat", "xxx"))
+
+		// Verify .git is now a bare repository
+		isBare := runGitSuccess(t, repoDir, "--git-dir=.git", "rev-parse", "--is-bare-repository")
+		if !strings.Contains(isBare, "true") {
+			t.Errorf("expected .git to be a bare repository, but it isn't")
+		}
+	})
+
+	t.Run("worktree is functional", func(t *testing.T) {
+		worktreeDir := filepath.Join(repoDir, "feat", "xxx")
+		stdout := runGitSuccess(t, worktreeDir, "status")
+		assertOutputContains(t, stdout, "On branch feat/xxx")
+	})
+}
+
+// TestMigrate_WithNestedBranchNameAndExistingDir_InPlace tests in-place migration when:
+// 1. Checked out to a nested branch like "feat/xxx"
+// 2. The repository already has a "feat" directory with files
+func TestMigrate_WithNestedBranchNameAndExistingDir_InPlace(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	tempDir := createTempDir(t, "migrate-nested-branch-existing-dir")
+
+	// Setup: create a regular git repository with "feat/bar" directory
+	repoDir := filepath.Join(tempDir, "test-repo")
+	setupGitRepo(t, repoDir)
+
+	// Create existing "feat" directory with content
+	featBarDir := filepath.Join(repoDir, "feat", "bar")
+	if err := os.MkdirAll(featBarDir, 0755); err != nil {
+		t.Fatalf("failed to create feat/bar directory: %v", err)
+	}
+	writeFile(t, filepath.Join(featBarDir, "file.txt"), "bar content")
+	runGitSuccess(t, repoDir, "add", ".")
+	runGitSuccess(t, repoDir, "commit", "-m", "Add feat/bar directory")
+
+	// Create and checkout a nested branch
+	runGitSuccess(t, repoDir, "checkout", "-b", "feat/xxx")
+
+	t.Run("in-place migrate handles nested branch with existing directory", func(t *testing.T) {
+		stdout := runBtSuccess(t, repoDir, "repo", "migrate", ".", "-i")
+
+		assertOutputContains(t, stdout, "Migration successful")
+		assertOutputContains(t, stdout, "Current branch: feat/xxx")
+
+		// Check baretree structure was created with nested directory
+		assertFileExists(t, filepath.Join(repoDir, ".git"))
+		assertFileExists(t, filepath.Join(repoDir, "feat", "xxx"))
+
+		// Check that the existing feat/bar directory was moved to worktree
+		assertFileExists(t, filepath.Join(repoDir, "feat", "xxx", "feat", "bar", "file.txt"))
+		assertFileContent(t, filepath.Join(repoDir, "feat", "xxx", "feat", "bar", "file.txt"), "bar content")
+	})
+
+	t.Run("worktree is functional", func(t *testing.T) {
+		worktreeDir := filepath.Join(repoDir, "feat", "xxx")
+		stdout := runGitSuccess(t, worktreeDir, "status")
+		assertOutputContains(t, stdout, "On branch feat/xxx")
+	})
+}
+
+// TestMigrate_WithNestedBranchName_Destination tests migration with -d when checked out to a nested branch
+func TestMigrate_WithNestedBranchName_Destination(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	tempDir := createTempDir(t, "migrate-nested-branch-dest")
+
+	// Setup: create a regular git repository on a nested branch
+	repoDir := filepath.Join(tempDir, "test-repo")
+	setupGitRepo(t, repoDir)
+
+	// Create and checkout a nested branch
+	runGitSuccess(t, repoDir, "checkout", "-b", "feat/xxx")
+
+	destPath := filepath.Join(tempDir, "dest-repo")
+
+	t.Run("migrate to destination handles nested branch name", func(t *testing.T) {
+		stdout := runBtSuccess(t, repoDir, "repo", "migrate", ".", "-d", destPath)
+
+		assertOutputContains(t, stdout, "Migration successful")
+		assertOutputContains(t, stdout, "Current branch: feat/xxx")
+
+		// Check baretree structure was created with nested directory
+		assertFileExists(t, filepath.Join(destPath, ".git"))
+		assertFileExists(t, filepath.Join(destPath, "feat", "xxx"))
+
+		// Original repository should still exist
+		assertFileExists(t, filepath.Join(repoDir, ".git"))
+	})
+
+	t.Run("worktree is functional", func(t *testing.T) {
+		worktreeDir := filepath.Join(destPath, "feat", "xxx")
+		stdout := runGitSuccess(t, worktreeDir, "status")
+		assertOutputContains(t, stdout, "On branch feat/xxx")
+	})
+}

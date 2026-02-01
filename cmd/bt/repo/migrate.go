@@ -221,7 +221,14 @@ func migrateInPlaceImpl(absSource, currentBranch string, externalWorktrees []git
 		return fmt.Errorf("failed to set bare config: %w", err)
 	}
 
-	// Step 3: Create worktree directory
+	// Step 3: Read entries BEFORE creating worktree directory
+	// This is important for nested branches like "feat/xxx" where MkdirAll creates "feat" directory
+	entries, err := os.ReadDir(absSource)
+	if err != nil {
+		return fmt.Errorf("failed to read source directory: %w", err)
+	}
+
+	// Step 4: Create worktree directory
 	if err := os.MkdirAll(worktreePath, 0755); err != nil {
 		// Rollback: revert to non-bare
 		if _, executeErr := bareExecutor.Execute("config", "--bool", "core.bare", "false"); executeErr != nil {
@@ -230,21 +237,44 @@ func migrateInPlaceImpl(absSource, currentBranch string, externalWorktrees []git
 		return fmt.Errorf("failed to create worktree directory: %w", err)
 	}
 
-	// Step 4: Move all files (except bare dir and worktree dir) to worktree
-	entries, err := os.ReadDir(absSource)
-	if err != nil {
-		return fmt.Errorf("failed to read source directory: %w", err)
-	}
+	// Step 5: Move all files (except bare dir) to worktree
 
 	for _, entry := range entries {
 		name := entry.Name()
-		if name == config.BareDir || name == currentBranch {
+		if name == config.BareDir {
 			continue
 		}
 		srcPath := filepath.Join(absSource, name)
 		dstPath := filepath.Join(worktreePath, name)
-		if err := os.Rename(srcPath, dstPath); err != nil {
-			return fmt.Errorf("failed to move %s to worktree: %w", name, err)
+
+		// Check if srcPath is an ancestor of worktreePath (for nested branches like "feat/xxx")
+		// In this case, srcPath would be "feat" and worktreePath would be "feat/xxx"
+		relPath, relErr := filepath.Rel(srcPath, worktreePath)
+		if relErr == nil && !strings.HasPrefix(relPath, "..") && relPath != "." {
+			// srcPath is an ancestor of worktreePath
+			// Move contents except the worktree path component
+			if err := moveContentsExcludingWorktree(srcPath, dstPath, worktreePath); err != nil {
+				return fmt.Errorf("failed to move contents of %s to worktree: %w", name, err)
+			}
+			// Remove the now-empty source directory (should only contain the worktree path now)
+			// The worktree directory itself will remain
+			continue
+		}
+
+		// Check if destination already exists (created by MkdirAll for nested branch like "feat/xxx")
+		if dstInfo, err := os.Stat(dstPath); err == nil && dstInfo.IsDir() && entry.IsDir() {
+			// Destination directory exists - move contents recursively
+			if err := moveContentsRecursively(srcPath, dstPath); err != nil {
+				return fmt.Errorf("failed to move contents of %s to worktree: %w", name, err)
+			}
+			// Remove the now-empty source directory
+			if err := os.Remove(srcPath); err != nil {
+				return fmt.Errorf("failed to remove empty source directory %s: %w", name, err)
+			}
+		} else {
+			if err := os.Rename(srcPath, dstPath); err != nil {
+				return fmt.Errorf("failed to move %s to worktree: %w", name, err)
+			}
 		}
 	}
 
@@ -393,6 +423,7 @@ func migrateToDestination(absSource, absDestination, currentBranch string, exter
 				return fmt.Errorf("failed to create symlink %s: %w", name, err)
 			}
 		} else if info.IsDir() {
+			// copyDir handles existing directories via MkdirAll, so it's safe for nested branches
 			if err := copyDir(srcPath, dstPath); err != nil {
 				os.RemoveAll(absDestination)
 				return fmt.Errorf("failed to copy directory %s: %w", name, err)
@@ -566,6 +597,83 @@ func copyDir(src, dst string) error {
 			if err := copyFile(srcPath, dstPath); err != nil {
 				return err
 			}
+		}
+	}
+
+	return nil
+}
+
+// moveContentsRecursively moves all contents from src directory to dst directory recursively.
+// It handles the case where dst already has some directories (e.g., from MkdirAll with nested paths).
+func moveContentsRecursively(src, dst string) error {
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		srcPath := filepath.Join(src, entry.Name())
+		dstPath := filepath.Join(dst, entry.Name())
+
+		// Check if destination already exists
+		if dstInfo, err := os.Stat(dstPath); err == nil && dstInfo.IsDir() && entry.IsDir() {
+			// Both are directories - recurse
+			if err := moveContentsRecursively(srcPath, dstPath); err != nil {
+				return err
+			}
+			// Remove the now-empty source directory
+			if err := os.Remove(srcPath); err != nil {
+				return err
+			}
+		} else {
+			// Move directly
+			if err := os.Rename(srcPath, dstPath); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// moveContentsExcludingWorktree moves contents from src to dst, excluding directories that are
+// ancestors of the worktreePath. This handles cases like moving "feat" to "feat/xxx/feat"
+// where "feat" contains "xxx" (the worktree directory).
+func moveContentsExcludingWorktree(src, dst, worktreePath string) error {
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+
+	// Create destination directory if it doesn't exist
+	if err := os.MkdirAll(dst, 0755); err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		srcPath := filepath.Join(src, entry.Name())
+		dstPath := filepath.Join(dst, entry.Name())
+
+		// Check if srcPath is worktreePath or an ancestor of worktreePath
+		relPath, relErr := filepath.Rel(srcPath, worktreePath)
+		if relErr == nil && !strings.HasPrefix(relPath, "..") {
+			// srcPath is worktreePath itself or an ancestor of worktreePath
+			if relPath == "." {
+				// srcPath IS worktreePath - skip entirely
+				continue
+			}
+			// srcPath is an ancestor of worktreePath - need to recurse
+			if entry.IsDir() {
+				if err := moveContentsExcludingWorktree(srcPath, dstPath, worktreePath); err != nil {
+					return err
+				}
+				continue
+			}
+		}
+
+		// Normal move
+		if err := os.Rename(srcPath, dstPath); err != nil {
+			return err
 		}
 	}
 

@@ -100,6 +100,9 @@ Repository migration tests.
 | `TestMigrate_ToRoot_MultipleHierarchicalWorktrees` | `--to-managed` with multiple hierarchical worktrees |
 | `TestMigrate_Destination_DetachedHead` | Migration with detached HEAD worktree |
 | `TestMigrate_ToRoot_PreservesWorkingStateWithHierarchicalWorktree` | Working state preservation in hierarchical worktree during `--to-managed` |
+| `TestMigrate_WithNestedBranchName_InPlace` | In-place migration when checked out to nested branch (e.g., feat/xxx) |
+| `TestMigrate_WithNestedBranchNameAndExistingDir_InPlace` | In-place migration with nested branch when existing directory matches branch prefix |
+| `TestMigrate_WithNestedBranchName_Destination` | Migration with `-d` when checked out to nested branch |
 
 ### journey_remote_test.go
 

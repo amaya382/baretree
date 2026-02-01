@@ -178,6 +178,12 @@ func runUnbare(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(os.Stderr, "Warning: failed to preserve staging state: %v\n", err)
 	}
 
+	// Preserve submodule staging state by re-copying index files
+	// (git submodule update overwrites index files, so we need to copy them again)
+	if err := copySubmoduleIndexFiles(bareDir, absDestination); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to preserve submodule staging state: %v\n", err)
+	}
+
 	fmt.Printf("\n✓ Converted successfully!\n")
 	fmt.Printf("  Repository: %s\n", absDestination)
 	fmt.Printf("  Branch: %s\n", branchName)
@@ -434,6 +440,35 @@ func copyIndexFile(bareDir, worktreePath, destination, branchName string) error 
 
 	dstIndex := filepath.Join(destination, ".git", "index")
 	return copyFile(srcIndex, dstIndex)
+}
+
+// copySubmoduleIndexFiles copies index files for all submodules to preserve staging state.
+// This is called after git submodule update --init which overwrites index files.
+func copySubmoduleIndexFiles(bareDir, destination string) error {
+	srcModulesDir := filepath.Join(bareDir, "modules")
+	dstModulesDir := filepath.Join(destination, ".git", "modules")
+
+	if _, err := os.Stat(srcModulesDir); os.IsNotExist(err) {
+		return nil // No modules directory
+	}
+
+	return filepath.Walk(srcModulesDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil // Skip errors
+		}
+
+		// Look for index files in module directories
+		if info.Name() == "index" && !info.IsDir() {
+			relPath, err := filepath.Rel(srcModulesDir, path)
+			if err != nil {
+				return nil
+			}
+			dstPath := filepath.Join(dstModulesDir, relPath)
+			// Copy index file, ignoring errors (non-fatal)
+			_ = copyFile(path, dstPath)
+		}
+		return nil
+	})
 }
 
 // getDeletedFiles returns a list of files that are deleted in the worktree

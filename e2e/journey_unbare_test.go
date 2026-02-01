@@ -576,6 +576,72 @@ func TestUnbare_SubmoduleOperations(t *testing.T) {
 	})
 }
 
+// TestUnbare_SubmoduleStagingState tests that submodule staging state is preserved
+func TestUnbare_SubmoduleStagingState(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	tempDir := createTempDir(t, "unbare-submodule-staging")
+
+	// Setup submodule repo
+	submoduleRepo := filepath.Join(tempDir, "submodule-repo")
+	setupGitRepo(t, submoduleRepo)
+	writeFile(t, filepath.Join(submoduleRepo, "lib.txt"), "lib content")
+	runGitSuccess(t, submoduleRepo, "add", ".")
+	runGitSuccess(t, submoduleRepo, "commit", "-m", "Add lib")
+
+	// Setup main baretree repo with submodule
+	repoDir := filepath.Join(tempDir, "main-repo")
+	setupGitRepo(t, repoDir)
+	runGitSuccess(t, repoDir, "-c", "protocol.file.allow=always", "submodule", "add", submoduleRepo, "libs/mylib")
+	runGitSuccess(t, repoDir, "commit", "-m", "Add submodule")
+
+	// Migrate to baretree
+	runBtSuccess(t, repoDir, "repo", "migrate", ".", "-i")
+
+	// After migrate -i, the worktree is at repoDir/master
+	worktreeDir := filepath.Join(repoDir, "master")
+
+	// Make changes in submodule and stage them
+	submoduleInWorktree := filepath.Join(worktreeDir, "libs", "mylib")
+	writeFile(t, filepath.Join(submoduleInWorktree, "new-file.txt"), "new content")
+	writeFile(t, filepath.Join(submoduleInWorktree, "lib.txt"), "modified content")
+	runGitSuccess(t, submoduleInWorktree, "add", "new-file.txt")
+	// lib.txt is modified but not staged
+
+	// Check staging state before unbare
+	statusBefore := runGitSuccess(t, submoduleInWorktree, "status", "--porcelain")
+
+	// Unbare
+	destDir := filepath.Join(tempDir, "standalone")
+	runBtSuccess(t, repoDir, "unbare", "master", destDir)
+
+	t.Run("submodule staging state preserved", func(t *testing.T) {
+		submoduleInDest := filepath.Join(destDir, "libs", "mylib")
+
+		// Check staging state after unbare
+		statusAfter := runGitSuccess(t, submoduleInDest, "status", "--porcelain")
+
+		// Both should have the same staging state
+		if statusBefore != statusAfter {
+			t.Errorf("staging state not preserved\nbefore: %s\nafter: %s", statusBefore, statusAfter)
+		}
+
+		// Verify specific states:
+		// new-file.txt should be staged (A)
+		assertOutputContains(t, statusAfter, "A  new-file.txt")
+		// lib.txt should be modified but not staged (M in second column)
+		assertOutputContains(t, statusAfter, " M lib.txt")
+	})
+
+	t.Run("file contents preserved", func(t *testing.T) {
+		submoduleInDest := filepath.Join(destDir, "libs", "mylib")
+		assertFileContent(t, filepath.Join(submoduleInDest, "new-file.txt"), "new content")
+		assertFileContent(t, filepath.Join(submoduleInDest, "lib.txt"), "modified content")
+	})
+}
+
 // Helper function to create a baretree repository
 func setupBaretreeRepo(t *testing.T, dir string) {
 	t.Helper()

@@ -184,6 +184,7 @@ Conversion from baretree to regular repository tests.
 | `TestUnbare_WithMultipleSubmodules` | Multiple submodules preservation in unbare |
 | `TestUnbare_WithNestedSubmodule` | Nested submodules preservation in unbare |
 | `TestUnbare_SubmoduleOperations` | Submodule operations work after unbare |
+| `TestUnbare_SubmoduleStagingState` | Submodule staging state preservation |
 | `TestUnbare_DestinationExists` | Failure when destination already exists |
 
 ## Running Tests

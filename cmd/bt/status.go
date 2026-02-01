@@ -62,9 +62,17 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Print repository information
 	fmt.Println("Repository Information:")
-	fmt.Printf("  Root:       %s\n", repoRoot)
-	fmt.Printf("  Bare repo:  %s\n", bareDir)
+	fmt.Printf("  Root:          %s\n", repoRoot)
+	fmt.Printf("  Bare repo:     %s\n", bareDir)
+	fmt.Printf("  Default branch: %s\n", mgr.Config.Repository.DefaultBranch)
 	fmt.Println()
+
+	// Check if default branch worktree exists
+	defaultBranchPath := filepath.Join(repoRoot, mgr.Config.Repository.DefaultBranch)
+	defaultBranchMissing := false
+	if _, err := os.Stat(defaultBranchPath); os.IsNotExist(err) {
+		defaultBranchMissing = true
+	}
 
 	// Check for broken worktrees (moved to unknown location) before listing
 	brokenWorktrees := detectBrokenWorktrees(bareDir)
@@ -139,8 +147,13 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	// Print warnings
-	if len(unmanagedWorktrees) > 0 || len(brokenWorktrees) > 0 {
+	if len(unmanagedWorktrees) > 0 || len(brokenWorktrees) > 0 || defaultBranchMissing {
 		fmt.Println("Warnings:")
+		if defaultBranchMissing {
+			fmt.Printf("  - Default branch worktree '%s' does not exist\n", mgr.Config.Repository.DefaultBranch)
+			fmt.Printf("    Expected path: %s\n", defaultBranchPath)
+			fmt.Printf("    Fix with: git config --file %s/config baretree.defaultbranch <branch>\n", bareDir)
+		}
 		for _, path := range unmanagedWorktrees {
 			fmt.Printf("  - Worktree at %s is outside managed directory\n", path)
 			fmt.Printf("    Run 'bt repair %s' to fix it\n", path)

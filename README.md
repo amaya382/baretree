@@ -3,7 +3,7 @@
 
 <h1 align="center">🪾 baretree</h1>
 
-<p align="center"><b>Git repositories and worktrees, organized.</b></p>
+<p align="center"><b>Git repositories, worktrees, and branches, organized.</b></p>
 
 baretree combines centralized repository management (inspired by [ghq](https://github.com/x-motemen/ghq)) with powerful Git worktree support. Manage all your repositories in one place, keep branches organized, and switch contexts instantly.
 
@@ -12,9 +12,10 @@ baretree combines centralized repository management (inspired by [ghq](https://g
 ### Before
 ```
 ~/projects/
-├── my-app/                    # Clone 1
-├── my-app-feature/            # Clone 2 for feature work
-├── my-app-hotfix/             # Clone 3 for hotfix
+├── my-app/                    # main branch... or was it develop?
+├── my-app-feature/            # Which feature branch is this?
+├── my-app-auth-backup/        # Forgot to delete after merge
+├── my-app-hotfix-20240115/    # Old hotfix, still needed?
 └── ...scattered everywhere
 ```
 
@@ -24,10 +25,12 @@ baretree combines centralized repository management (inspired by [ghq](https://g
 ├── github.com/
 │   └── user/
 │       ├── my-app/                      # One repository
-│       │   ├── .git/                    # Bare git repository
-│       │   ├── main/                    # main branch
-│       │   ├── feature/auth/            # feature/auth branch
-│       │   └── .shared/                 # Shared files (.env, etc.)
+│       │   ├── .git/                    # Bare repository
+│       │   ├── .shared/                 # Shared across all worktrees (.env, etc.)
+│       │   ├── main/                    # worktree ← main branch
+│       │   └── feature/
+│       │       ├── auth/                # worktree ← feature/auth branch
+│       │       └── api/                 # worktree ← feature/api branch
 │       └── another-project/
 └── gitlab.com/
     └── ...

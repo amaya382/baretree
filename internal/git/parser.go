@@ -83,3 +83,15 @@ func GetDefaultBranch(bareRepoPath string) (string, error) {
 	branch := strings.TrimPrefix(output, "refs/remotes/origin/")
 	return branch, nil
 }
+
+// ToWorktreeGitDirName converts a branch name to a safe directory name for .git/worktrees/.
+// Git expects flat directory names under .git/worktrees/, so slashes in branch names
+// must be escaped. We use URL-style encoding (%2F) to avoid conflicts with branch names
+// that contain dashes.
+func ToWorktreeGitDirName(branchName string) string {
+	// Escape existing % first to avoid double-encoding issues
+	escaped := strings.ReplaceAll(branchName, "%", "%25")
+	// Then escape slashes
+	escaped = strings.ReplaceAll(escaped, "/", "%2F")
+	return escaped
+}

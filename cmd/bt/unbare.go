@@ -425,8 +425,9 @@ func copyWorktreeFiles(source, destination string) error {
 
 // copyIndexFile copies the index file to preserve staging state
 func copyIndexFile(bareDir, worktreePath, destination, branchName string) error {
-	// The index file for worktrees is in .git/worktrees/<branch>/index
-	worktreeGitDir := filepath.Join(bareDir, "worktrees", branchName)
+	// The index file for worktrees is in .git/worktrees/<escaped-branch>/index
+	worktreeGitDirName := git.ToWorktreeGitDirName(branchName)
+	worktreeGitDir := filepath.Join(bareDir, "worktrees", worktreeGitDirName)
 	srcIndex := filepath.Join(worktreeGitDir, "index")
 
 	// If worktree-specific index doesn't exist, try the main bare repo index

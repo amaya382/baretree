@@ -278,9 +278,11 @@ func migrateInPlaceImpl(absSource, currentBranch string, externalWorktrees []git
 		}
 	}
 
-	// Step 5: Set up worktree link
+	// Step 6: Set up worktree link
 	// Create .git file in worktree pointing to bare repo's worktrees directory
-	worktreeGitDir := filepath.Join(barePath, "worktrees", currentBranch)
+	// Use escaped name for the worktree git directory to avoid nested paths
+	worktreeGitDirName := git.ToWorktreeGitDirName(currentBranch)
+	worktreeGitDir := filepath.Join(barePath, "worktrees", worktreeGitDirName)
 	if err := os.MkdirAll(worktreeGitDir, 0755); err != nil {
 		return fmt.Errorf("failed to create worktree git dir: %w", err)
 	}
@@ -437,7 +439,9 @@ func migrateToDestination(absSource, absDestination, currentBranch string, exter
 	}
 
 	// Step 5: Set up worktree link
-	worktreeGitDir := filepath.Join(barePath, "worktrees", currentBranch)
+	// Use escaped name for the worktree git directory to avoid nested paths
+	worktreeGitDirName := git.ToWorktreeGitDirName(currentBranch)
+	worktreeGitDir := filepath.Join(barePath, "worktrees", worktreeGitDirName)
 	if err := os.MkdirAll(worktreeGitDir, 0755); err != nil {
 		os.RemoveAll(absDestination)
 		return fmt.Errorf("failed to create worktree git dir: %w", err)
@@ -1088,15 +1092,12 @@ func migrateExternalWorktreesWithCopy(repoRoot, barePath string, executor *git.E
 		// We need to use this existing directory and update its paths
 		srcWorktreeGitDir := filepath.Join(barePath, "worktrees", srcWorktreeName)
 
-		// New worktree git directory (using branch name for baretree convention)
-		newWorktreeGitDir := filepath.Join(barePath, "worktrees", wt.Branch)
+		// New worktree git directory (using escaped branch name to avoid nested paths)
+		newWorktreeGitDirName := git.ToWorktreeGitDirName(wt.Branch)
+		newWorktreeGitDir := filepath.Join(barePath, "worktrees", newWorktreeGitDirName)
 
 		// If source and destination git dirs are different, we need to rename/restructure
 		if srcWorktreeGitDir != newWorktreeGitDir {
-			// Create parent directories for hierarchical branch names
-			if err := os.MkdirAll(filepath.Dir(newWorktreeGitDir), 0755); err != nil {
-				return movedWorktrees, fmt.Errorf("failed to create parent directory for git dir %s: %w", wt.Branch, err)
-			}
 
 			// Move the existing git directory to the new location
 			if _, err := os.Stat(srcWorktreeGitDir); err == nil {
@@ -1334,3 +1335,4 @@ func copyWorktreeDir(src, dst string) error {
 
 	return nil
 }
+

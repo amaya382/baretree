@@ -14,8 +14,8 @@ func TestDefaultConfig(t *testing.T) {
 		t.Errorf("expected default_branch 'main', got %q", cfg.Repository.DefaultBranch)
 	}
 
-	if len(cfg.Shared) != 0 {
-		t.Errorf("expected empty shared, got %d items", len(cfg.Shared))
+	if len(cfg.PostCreate) != 0 {
+		t.Errorf("expected empty postcreate, got %d items", len(cfg.PostCreate))
 	}
 }
 
@@ -89,7 +89,7 @@ func TestSaveConfig(t *testing.T) {
 		Repository: Repository{
 			DefaultBranch: "main",
 		},
-		Shared: []Shared{
+		PostCreate: []PostCreateAction{
 			{Source: ".env", Type: "symlink"},
 		},
 	}
@@ -104,8 +104,8 @@ func TestSaveConfig(t *testing.T) {
 		t.Fatalf("failed to load saved config: %v", err)
 	}
 
-	if len(loaded.Shared) != len(cfg.Shared) {
-		t.Errorf("expected %d shared items, got %d", len(cfg.Shared), len(loaded.Shared))
+	if len(loaded.PostCreate) != len(cfg.PostCreate) {
+		t.Errorf("expected %d postcreate items, got %d", len(cfg.PostCreate), len(loaded.PostCreate))
 	}
 }
 
@@ -160,7 +160,7 @@ func TestExportImportTOML(t *testing.T) {
 		Repository: Repository{
 			DefaultBranch: "main",
 		},
-		Shared: []Shared{
+		PostCreate: []PostCreateAction{
 			{Source: ".env", Type: "symlink", Managed: false},
 			{Source: ".gitignore", Type: "copy", Managed: true},
 		},
@@ -179,86 +179,90 @@ func TestExportImportTOML(t *testing.T) {
 	}
 
 	// Verify
-	if len(imported.Shared) != len(original.Shared) {
-		t.Errorf("expected %d shared items, got %d", len(original.Shared), len(imported.Shared))
+	if len(imported.PostCreate) != len(original.PostCreate) {
+		t.Errorf("expected %d postcreate items, got %d", len(original.PostCreate), len(imported.PostCreate))
 	}
 }
 
-func TestExportImportSharedTOML(t *testing.T) {
-	original := []Shared{
+func TestExportImportPostCreateTOML(t *testing.T) {
+	original := []PostCreateAction{
 		{Source: ".env", Type: "symlink", Managed: false},
 		{Source: ".gitignore", Type: "copy", Managed: true},
+		{Source: "direnv allow", Type: "command"},
 	}
 
 	// Export to TOML
-	tomlContent, err := ExportSharedToTOML(original)
+	tomlContent, err := ExportPostCreateToTOML(original)
 	if err != nil {
 		t.Fatalf("failed to export: %v", err)
 	}
 
 	// Import from TOML
-	imported, err := ImportSharedFromTOML(tomlContent)
+	imported, err := ImportPostCreateFromTOML(tomlContent)
 	if err != nil {
 		t.Fatalf("failed to import: %v", err)
 	}
 
 	// Verify
 	if len(imported) != len(original) {
-		t.Errorf("expected %d shared items, got %d", len(original), len(imported))
+		t.Errorf("expected %d postcreate items, got %d", len(original), len(imported))
 	}
 
-	for i, s := range imported {
-		if s.Source != original[i].Source {
-			t.Errorf("item %d: expected source %q, got %q", i, original[i].Source, s.Source)
+	for i, a := range imported {
+		if a.Source != original[i].Source {
+			t.Errorf("item %d: expected source %q, got %q", i, original[i].Source, a.Source)
 		}
-		if s.Type != original[i].Type {
-			t.Errorf("item %d: expected type %q, got %q", i, original[i].Type, s.Type)
+		if a.Type != original[i].Type {
+			t.Errorf("item %d: expected type %q, got %q", i, original[i].Type, a.Type)
 		}
-		if s.Managed != original[i].Managed {
-			t.Errorf("item %d: expected managed %v, got %v", i, original[i].Managed, s.Managed)
+		if a.Managed != original[i].Managed {
+			t.Errorf("item %d: expected managed %v, got %v", i, original[i].Managed, a.Managed)
 		}
 	}
 }
 
-func TestParseSharedEntry(t *testing.T) {
+func TestParsePostCreateEntry(t *testing.T) {
 	tests := []struct {
 		input    string
-		expected Shared
+		expected PostCreateAction
 		wantErr  bool
 	}{
-		{".env:symlink", Shared{Source: ".env", Type: "symlink", Managed: false}, false},
-		{".gitignore:copy:managed", Shared{Source: ".gitignore", Type: "copy", Managed: true}, false},
-		{"invalid", Shared{}, true},
+		{".env:symlink", PostCreateAction{Source: ".env", Type: "symlink", Managed: false}, false},
+		{".gitignore:copy:managed", PostCreateAction{Source: ".gitignore", Type: "copy", Managed: true}, false},
+		{"direnv allow:command", PostCreateAction{Source: "direnv allow", Type: "command"}, false},
+		{"npm install:command", PostCreateAction{Source: "npm install", Type: "command"}, false},
+		{"invalid", PostCreateAction{}, true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			result, err := parseSharedEntry(tt.input)
+			result, err := parsePostCreateEntry(tt.input)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("parseSharedEntry(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
+				t.Errorf("parsePostCreateEntry(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
 				return
 			}
 			if !tt.wantErr && result != tt.expected {
-				t.Errorf("parseSharedEntry(%q) = %v, want %v", tt.input, result, tt.expected)
+				t.Errorf("parsePostCreateEntry(%q) = %v, want %v", tt.input, result, tt.expected)
 			}
 		})
 	}
 }
 
-func TestFormatSharedEntry(t *testing.T) {
+func TestFormatPostCreateEntry(t *testing.T) {
 	tests := []struct {
-		input    Shared
+		input    PostCreateAction
 		expected string
 	}{
-		{Shared{Source: ".env", Type: "symlink", Managed: false}, ".env:symlink"},
-		{Shared{Source: ".gitignore", Type: "copy", Managed: true}, ".gitignore:copy:managed"},
+		{PostCreateAction{Source: ".env", Type: "symlink", Managed: false}, ".env:symlink"},
+		{PostCreateAction{Source: ".gitignore", Type: "copy", Managed: true}, ".gitignore:copy:managed"},
+		{PostCreateAction{Source: "direnv allow", Type: "command"}, "direnv allow:command"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.expected, func(t *testing.T) {
-			result := formatSharedEntry(tt.input)
+			result := formatPostCreateEntry(tt.input)
 			if result != tt.expected {
-				t.Errorf("formatSharedEntry(%v) = %q, want %q", tt.input, result, tt.expected)
+				t.Errorf("formatPostCreateEntry(%v) = %q, want %q", tt.input, result, tt.expected)
 			}
 		})
 	}

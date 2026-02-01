@@ -141,29 +141,32 @@ Worktree repair tests.
 | `TestRepair_MovedBareRepository` | Repair after entire project moved using `bt repair --fix-paths` |
 | `TestRepair_PathChanged` | Repair after path change (home directory rename) using `bt repair --fix-paths` |
 
-### journey_shared_test.go
+### journey_postcreate_test.go
 
-Shared file configuration tests.
-
-| Test Case | Test Purpose |
-|-----------|--------------|
-| `TestJourney4_SharedFiles` | Shared file configuration and application to new worktree |
-| `TestSharedFileCopy` | Copy type shared files |
-
-### journey_shared_cmd_test.go
-
-Shared file command tests.
+Post-create file configuration tests.
 
 | Test Case | Test Purpose |
 |-----------|--------------|
-| `TestSharedAdd` | Symlink configuration with `bt shared add` |
-| `TestSharedAddManaged` | Managed mode with .shared directory |
-| `TestSharedAddConflict` | Conflict detection with existing files |
-| `TestSharedRemove` | Configuration removal with `bt shared remove` |
-| `TestSharedList` | Configuration listing with `bt shared list` |
-| `TestSharedApply` | Applying to existing worktrees with `bt shared apply` |
-| `TestSharedApplyConflict` | Conflict detection during apply |
-| `TestStatusShowsSharedInfo` | Shared file status display in status command |
+| `TestJourney4_PostCreateFiles` | Post-create file configuration and application to new worktree |
+| `TestPostCreateFileCopy` | Copy type post-create files |
+
+### journey_postcreate_cmd_test.go
+
+Post-create command tests.
+
+| Test Case | Test Purpose |
+|-----------|--------------|
+| `TestPostCreateAdd` | Symlink configuration with `bt post-create add symlink` |
+| `TestPostCreateAddManaged` | Managed mode with .shared directory |
+| `TestPostCreateAddConflict` | Conflict detection with existing files |
+| `TestPostCreateRemove` | Configuration removal with `bt post-create remove` |
+| `TestPostCreateList` | Configuration listing with `bt post-create list` |
+| `TestPostCreateApply` | Applying to existing worktrees with `bt post-create apply` |
+| `TestPostCreateApplyConflict` | Conflict detection during apply |
+| `TestStatusShowsPostCreateInfo` | Post-create status display in status command |
+| `TestPostCreateAddCommand` | Command type configuration with `bt post-create add command` |
+| `TestPostCreateCommandExecution` | Command execution when creating worktree |
+| `TestPostCreateCommandFailure` | Graceful handling of command failures |
 
 ### journey_unbare_test.go
 

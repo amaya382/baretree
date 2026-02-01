@@ -12,7 +12,7 @@ import (
 const (
 	GitConfigSection          = "baretree"
 	GitConfigKeyDefaultBranch = "baretree.defaultbranch"
-	GitConfigKeyShared        = "baretree.shared"
+	GitConfigKeyPostCreate    = "baretree.postcreate"
 )
 
 // LoadConfigFromGit loads configuration from git-config in the bare repository
@@ -25,7 +25,7 @@ func LoadConfigFromGit(repoRoot string) (*Config, error) {
 
 	cfg := &Config{
 		Repository: Repository{},
-		Shared:     []Shared{},
+		PostCreate: []PostCreateAction{},
 	}
 
 	// Read config values
@@ -35,12 +35,12 @@ func LoadConfigFromGit(repoRoot string) (*Config, error) {
 		cfg.Repository.DefaultBranch = "main"
 	}
 
-	// Read shared entries
-	sharedEntries, err := gitConfigGetAll(bareDir, GitConfigKeyShared)
+	// Read post-create entries
+	postCreateEntries, err := gitConfigGetAll(bareDir, GitConfigKeyPostCreate)
 	if err == nil {
-		for _, entry := range sharedEntries {
-			if shared, err := parseSharedEntry(entry); err == nil {
-				cfg.Shared = append(cfg.Shared, shared)
+		for _, entry := range postCreateEntries {
+			if action, err := parsePostCreateEntry(entry); err == nil {
+				cfg.PostCreate = append(cfg.PostCreate, action)
 			}
 		}
 	}
@@ -57,12 +57,12 @@ func SaveConfigToGit(repoRoot string, cfg *Config) error {
 		return fmt.Errorf("failed to set defaultbranch: %w", err)
 	}
 
-	// Clear existing shared entries and add new ones
-	_ = gitConfigUnsetAll(bareDir, GitConfigKeyShared)
-	for _, shared := range cfg.Shared {
-		entry := formatSharedEntry(shared)
-		if err := gitConfigAdd(bareDir, GitConfigKeyShared, entry); err != nil {
-			return fmt.Errorf("failed to add shared entry: %w", err)
+	// Clear existing post-create entries and add new ones
+	_ = gitConfigUnsetAll(bareDir, GitConfigKeyPostCreate)
+	for _, action := range cfg.PostCreate {
+		entry := formatPostCreateEntry(action)
+		if err := gitConfigAdd(bareDir, GitConfigKeyPostCreate, entry); err != nil {
+			return fmt.Errorf("failed to add post-create entry: %w", err)
 		}
 	}
 
@@ -266,32 +266,54 @@ func gitConfigUnsetAll(bareDir, key string) error {
 	return cmd.Run()
 }
 
-// parseSharedEntry parses a shared entry from git config format
-// Format: "source:type" or "source:type:managed"
-func parseSharedEntry(entry string) (Shared, error) {
-	parts := strings.Split(entry, ":")
-	if len(parts) < 2 {
-		return Shared{}, fmt.Errorf("invalid shared entry format: %s", entry)
+// parsePostCreateEntry parses a post-create entry from git config format
+// Format for symlink/copy: "source:type" or "source:type:managed"
+// Format for command: "command_string:command"
+func parsePostCreateEntry(entry string) (PostCreateAction, error) {
+	// Find the last colon to determine the type
+	// This handles commands that may contain colons
+	lastColonIdx := strings.LastIndex(entry, ":")
+	if lastColonIdx == -1 {
+		return PostCreateAction{}, fmt.Errorf("invalid post-create entry format: %s", entry)
 	}
 
-	shared := Shared{
+	suffix := entry[lastColonIdx+1:]
+
+	// Check if it's a command type
+	if suffix == "command" {
+		return PostCreateAction{
+			Source: entry[:lastColonIdx],
+			Type:   "command",
+		}, nil
+	}
+
+	// Parse as symlink/copy format: "source:type" or "source:type:managed"
+	parts := strings.Split(entry, ":")
+	if len(parts) < 2 {
+		return PostCreateAction{}, fmt.Errorf("invalid post-create entry format: %s", entry)
+	}
+
+	action := PostCreateAction{
 		Source: parts[0],
 		Type:   parts[1],
 	}
 
 	if len(parts) >= 3 && parts[2] == "managed" {
-		shared.Managed = true
+		action.Managed = true
 	}
 
-	return shared, nil
+	return action, nil
 }
 
-// formatSharedEntry formats a Shared struct for git config storage
-func formatSharedEntry(shared Shared) string {
-	if shared.Managed {
-		return fmt.Sprintf("%s:%s:managed", shared.Source, shared.Type)
+// formatPostCreateEntry formats a PostCreateAction for git config storage
+func formatPostCreateEntry(action PostCreateAction) string {
+	if action.Type == "command" {
+		return fmt.Sprintf("%s:command", action.Source)
 	}
-	return fmt.Sprintf("%s:%s", shared.Source, shared.Type)
+	if action.Managed {
+		return fmt.Sprintf("%s:%s:managed", action.Source, action.Type)
+	}
+	return fmt.Sprintf("%s:%s", action.Source, action.Type)
 }
 
 // GetBareDir returns the bare directory path for a repository root

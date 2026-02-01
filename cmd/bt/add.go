@@ -140,13 +140,36 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to add worktree: %w", err)
 	}
 
-	fmt.Printf("✓ Worktree created at %s\n", worktreePath)
+	fmt.Printf("Worktree created at %s\n", worktreePath)
 
-	// Show shared files applied
-	if len(mgr.Config.Shared) > 0 {
-		fmt.Println("\nShared files applied:")
-		for _, shared := range mgr.Config.Shared {
-			fmt.Printf("  - %s (%s)\n", shared.Source, shared.Type)
+	// Show post-create actions applied
+	if len(mgr.Config.PostCreate) > 0 {
+		hasFileActions := false
+		hasCommandActions := false
+		for _, action := range mgr.Config.PostCreate {
+			if action.Type == "command" {
+				hasCommandActions = true
+			} else {
+				hasFileActions = true
+			}
+		}
+
+		if hasFileActions {
+			fmt.Println("\nPost-create files applied:")
+			for _, action := range mgr.Config.PostCreate {
+				if action.Type != "command" {
+					fmt.Printf("  - %s (%s)\n", action.Source, action.Type)
+				}
+			}
+		}
+
+		if hasCommandActions {
+			fmt.Println("\nPost-create commands executed:")
+			for _, action := range mgr.Config.PostCreate {
+				if action.Type == "command" {
+					fmt.Printf("  - %s\n", action.Source)
+				}
+			}
 		}
 	}
 

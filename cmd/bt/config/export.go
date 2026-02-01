@@ -19,8 +19,8 @@ var exportCmd = &cobra.Command{
 	Long: `Export the current baretree configuration to TOML format.
 
 This exports all baretree-related settings including:
-  - Repository settings (bare directory, default branch)
-  - Shared files configuration
+  - Repository settings (default branch)
+  - Post-create actions (symlink, copy, command)
 
 By default, outputs to stdout. Use -o to write to a file.
 

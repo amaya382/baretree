@@ -13,7 +13,7 @@ import (
 
 var statusCmd = &cobra.Command{
 	Use:   "status",
-	Short: "Show baretree repository status (worktrees, config, shared files)",
+	Short: "Show baretree repository status (worktrees, config, post-create actions)",
 	Long: `Display detailed information about the baretree repository.
 
 Shows:
@@ -21,7 +21,7 @@ Shows:
   - Configuration file location
   - All worktrees with management status
   - Warnings for unmanaged worktrees
-  - Configured shared files
+  - Configured post-create actions
 
 Example:
   bt status`,
@@ -166,28 +166,37 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 	}
 
-	// Print shared files configuration with status
-	if len(mgr.Config.Shared) > 0 {
-		fmt.Println("Shared files:")
+	// Print post-create actions configuration with status
+	if len(mgr.Config.PostCreate) > 0 {
+		fmt.Println("Post-create actions:")
 
-		// Get shared status
-		statuses, err := wtMgr.GetSharedStatus()
+		// Get post-create status
+		statuses, err := wtMgr.GetPostCreateStatus()
 		if err != nil {
 			// Fallback to simple listing
-			for _, shared := range mgr.Config.Shared {
-				modeStr := ""
-				if shared.Managed {
-					modeStr = ", managed"
+			for _, action := range mgr.Config.PostCreate {
+				if action.Type == "command" {
+					fmt.Printf("  [command] %s\n", action.Source)
+				} else {
+					modeStr := ""
+					if action.Managed {
+						modeStr = ", managed"
+					}
+					fmt.Printf("  [%s] %s%s\n", action.Type, action.Source, modeStr)
 				}
-				fmt.Printf("  %s (%s%s)\n", shared.Source, shared.Type, modeStr)
 			}
 		} else {
 			for _, status := range statuses {
+				if status.Type == "command" {
+					fmt.Printf("  [command] %s\n", status.Source)
+					continue
+				}
+
 				modeStr := ""
 				if status.Managed {
 					modeStr = ", managed"
 				}
-				fmt.Printf("  %s (%s%s)\n", status.Source, status.Type, modeStr)
+				fmt.Printf("  [%s] %s%s\n", status.Type, status.Source, modeStr)
 
 				// Show source info for non-managed
 				if !status.Managed && status.SourceWorktree != "" {
@@ -206,8 +215,8 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			}
 		}
 	} else {
-		fmt.Println("No shared files configured.")
-		fmt.Println("  Use 'bt shared add <file> --type symlink' to configure shared files.")
+		fmt.Println("No post-create actions configured.")
+		fmt.Println("  Use 'bt post-create add symlink <file>' to configure post-create actions.")
 	}
 
 	return nil

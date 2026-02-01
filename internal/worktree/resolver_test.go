@@ -145,7 +145,7 @@ func TestResolverLogic(t *testing.T) {
 func TestManagerConfig(t *testing.T) {
 	cfg := &config.Config{
 		Repository: config.Repository{},
-		Shared: []config.Shared{
+		PostCreate: []config.PostCreateAction{
 			{Source: ".env", Type: "symlink"},
 			{Source: "node_modules", Type: "symlink"},
 		},
@@ -161,7 +161,7 @@ func TestManagerConfig(t *testing.T) {
 		t.Errorf("expected BareDir '/home/user/project/.git', got %q", mgr.BareDir)
 	}
 
-	if len(mgr.Config.Shared) != 2 {
-		t.Errorf("expected 2 shared configs, got %d", len(mgr.Config.Shared))
+	if len(mgr.Config.PostCreate) != 2 {
+		t.Errorf("expected 2 post-create configs, got %d", len(mgr.Config.PostCreate))
 	}
 }

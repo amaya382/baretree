@@ -81,7 +81,7 @@ func runRepair(cmd *cobra.Command, args []string) error {
 
 	executor := git.NewExecutor(bareDir)
 
-	// Load config for shared file application
+	// Load config for post-create application
 	mgr, err := repository.NewManager(repoRoot)
 	if err != nil {
 		return err
@@ -314,9 +314,9 @@ func (t *repairTarget) repairExternal(repoRoot, bareDir string, executor *git.Ex
 		return fmt.Errorf("failed to repair worktree: %w", err)
 	}
 
-	// Apply shared file configuration
-	if err := wtMgr.ApplySharedConfig(targetPath); err != nil {
-		fmt.Printf("  Warning: failed to apply shared config: %v\n", err)
+	// Apply post-create file configuration
+	if _, err := wtMgr.ApplyPostCreateConfig(targetPath); err != nil {
+		fmt.Printf("  Warning: failed to apply post-create config: %v\n", err)
 	}
 
 	return nil
@@ -634,9 +634,9 @@ func runFixPaths(repoRoot, bareDir string, executor *git.Executor, wtMgr *worktr
 					continue
 				}
 
-				// Apply shared file configuration
-				if err := wtMgr.ApplySharedConfig(targetPath); err != nil {
-					fmt.Printf("  Warning: failed to apply shared config: %v\n", err)
+				// Apply post-create file configuration
+				if _, err := wtMgr.ApplyPostCreateConfig(targetPath); err != nil {
+					fmt.Printf("  Warning: failed to apply post-create config: %v\n", err)
 				}
 
 				fmt.Printf("  Moved %s -> %s\n", extPath, branchName)

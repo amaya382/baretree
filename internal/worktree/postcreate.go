@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/amaya382/baretree/internal/config"
@@ -15,15 +16,15 @@ const (
 	SharedDir = ".shared"
 )
 
-// SharedConflict represents a conflict when adding shared files
-type SharedConflict struct {
+// PostCreateConflict represents a conflict when adding shared files
+type PostCreateConflict struct {
 	Source       string
 	WorktreePath string
 	WorktreeName string
 }
 
-// SharedApplyResult represents the result of applying shared configuration
-type SharedApplyResult struct {
+// PostCreateApplyResult represents the result of applying post-create configuration
+type PostCreateApplyResult struct {
 	Source       string
 	Type         string
 	Managed      bool
@@ -32,8 +33,8 @@ type SharedApplyResult struct {
 	SourceBranch string   // source branch name (for non-managed)
 }
 
-// SharedStatus represents the status of a shared file in a worktree
-type SharedStatus struct {
+// PostCreateStatus represents the status of a post-create action in a worktree
+type PostCreateStatus struct {
 	WorktreeName string
 	WorktreePath string
 	Exists       bool
@@ -41,16 +42,27 @@ type SharedStatus struct {
 	IsCorrect    bool // symlink points to correct location
 }
 
-// GetSharedSourcePath returns the source path for a shared file
-func (m *Manager) GetSharedSourcePath(shared config.Shared) (string, error) {
-	if shared.Managed {
-		return filepath.Join(m.RepoRoot, SharedDir, shared.Source), nil
+// CommandResult represents the result of executing a command
+type CommandResult struct {
+	Command string
+	Success bool
+	Output  string
+	Error   string
+}
+
+// GetPostCreateSourcePath returns the source path for a post-create file action
+func (m *Manager) GetPostCreateSourcePath(action config.PostCreateAction) (string, error) {
+	if action.Type == "command" {
+		return "", fmt.Errorf("command type does not have a source path")
+	}
+	if action.Managed {
+		return filepath.Join(m.RepoRoot, SharedDir, action.Source), nil
 	}
 	mainWorktree, err := m.getMainWorktreePath()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(mainWorktree, shared.Source), nil
+	return filepath.Join(mainWorktree, action.Source), nil
 }
 
 // GetSharedDir returns the path to the .shared directory
@@ -58,11 +70,11 @@ func (m *Manager) GetSharedDir() string {
 	return filepath.Join(m.RepoRoot, SharedDir)
 }
 
-// CheckSharedConflicts checks if adding a shared file would conflict with existing files
+// CheckPostCreateConflicts checks if adding a post-create file would conflict with existing files
 // For managed mode, this checks worktrees OTHER than the main worktree (since main worktree
 // file will be moved to .shared/)
 // For non-managed mode, this checks worktrees OTHER than the main worktree (since it's the source)
-func (m *Manager) CheckSharedConflicts(source string, managed bool) ([]SharedConflict, error) {
+func (m *Manager) CheckPostCreateConflicts(source string, managed bool) ([]PostCreateConflict, error) {
 	worktrees, err := m.listWorktrees()
 	if err != nil {
 		return nil, err
@@ -73,7 +85,7 @@ func (m *Manager) CheckSharedConflicts(source string, managed bool) ([]SharedCon
 		return nil, err
 	}
 
-	var conflicts []SharedConflict
+	var conflicts []PostCreateConflict
 
 	for _, wt := range worktrees {
 		if wt.IsBare {
@@ -101,7 +113,7 @@ func (m *Manager) CheckSharedConflicts(source string, managed bool) ([]SharedCon
 				}
 			}
 			// File exists and is not a correct symlink - it's a conflict
-			conflicts = append(conflicts, SharedConflict{
+			conflicts = append(conflicts, PostCreateConflict{
 				Source:       source,
 				WorktreePath: targetPath,
 				WorktreeName: filepath.Base(wt.Path),
@@ -112,7 +124,7 @@ func (m *Manager) CheckSharedConflicts(source string, managed bool) ([]SharedCon
 	return conflicts, nil
 }
 
-// getExpectedSymlinkTarget returns the expected symlink target for a shared file
+// getExpectedSymlinkTarget returns the expected symlink target for a post-create file
 func (m *Manager) getExpectedSymlinkTarget(source string, managed bool) (string, error) {
 	if managed {
 		return filepath.Abs(filepath.Join(m.RepoRoot, SharedDir, source))
@@ -124,22 +136,40 @@ func (m *Manager) getExpectedSymlinkTarget(source string, managed bool) (string,
 	return filepath.Abs(filepath.Join(mainWorktree, source))
 }
 
-// AddShared adds a new shared file configuration and applies it
-func (m *Manager) AddShared(source string, sharedType string, managed bool) (*SharedApplyResult, error) {
+// AddPostCreate adds a new post-create action configuration and applies it
+func (m *Manager) AddPostCreate(source string, actionType string, managed bool) (*PostCreateApplyResult, error) {
 	// Check if already exists in config
-	for _, s := range m.Config.Shared {
-		if s.Source == source {
-			return nil, fmt.Errorf("shared file %s is already configured", source)
+	for _, a := range m.Config.PostCreate {
+		if a.Source == source {
+			return nil, fmt.Errorf("post-create action %s is already configured", source)
 		}
 	}
 
-	// Check for conflicts
-	conflicts, err := m.CheckSharedConflicts(source, managed)
+	// For command type, just add to config (no file operations needed)
+	if actionType == "command" {
+		newAction := config.PostCreateAction{
+			Source: source,
+			Type:   actionType,
+		}
+		m.Config.PostCreate = append(m.Config.PostCreate, newAction)
+
+		if err := config.SaveConfig(m.RepoRoot, m.Config); err != nil {
+			return nil, fmt.Errorf("failed to save config: %w", err)
+		}
+
+		return &PostCreateApplyResult{
+			Source: source,
+			Type:   actionType,
+		}, nil
+	}
+
+	// Check for conflicts (for symlink/copy types)
+	conflicts, err := m.CheckPostCreateConflicts(source, managed)
 	if err != nil {
 		return nil, err
 	}
 	if len(conflicts) > 0 {
-		return nil, &SharedConflictError{Conflicts: conflicts}
+		return nil, &PostCreateConflictError{Conflicts: conflicts}
 	}
 
 	// Get source file path
@@ -171,12 +201,12 @@ func (m *Manager) AddShared(source string, sharedType string, managed bool) (*Sh
 	}
 
 	// Add to config
-	newShared := config.Shared{
+	newAction := config.PostCreateAction{
 		Source:  source,
-		Type:    sharedType,
+		Type:    actionType,
 		Managed: managed,
 	}
-	m.Config.Shared = append(m.Config.Shared, newShared)
+	m.Config.PostCreate = append(m.Config.PostCreate, newAction)
 
 	// Save config
 	if err := config.SaveConfig(m.RepoRoot, m.Config); err != nil {
@@ -184,7 +214,7 @@ func (m *Manager) AddShared(source string, sharedType string, managed bool) (*Sh
 	}
 
 	// Apply to all worktrees
-	result, err := m.applySharedToAllWorktrees(newShared)
+	result, err := m.applyPostCreateToAllWorktrees(newAction)
 	if err != nil {
 		return nil, err
 	}
@@ -192,8 +222,16 @@ func (m *Manager) AddShared(source string, sharedType string, managed bool) (*Sh
 	return result, nil
 }
 
-// applySharedToAllWorktrees applies a shared configuration to all worktrees
-func (m *Manager) applySharedToAllWorktrees(shared config.Shared) (*SharedApplyResult, error) {
+// applyPostCreateToAllWorktrees applies a post-create configuration to all worktrees
+func (m *Manager) applyPostCreateToAllWorktrees(action config.PostCreateAction) (*PostCreateApplyResult, error) {
+	// Commands are not applied to existing worktrees
+	if action.Type == "command" {
+		return &PostCreateApplyResult{
+			Source: action.Source,
+			Type:   action.Type,
+		}, nil
+	}
+
 	worktrees, err := m.listWorktrees()
 	if err != nil {
 		return nil, err
@@ -204,7 +242,7 @@ func (m *Manager) applySharedToAllWorktrees(shared config.Shared) (*SharedApplyR
 		return nil, err
 	}
 
-	sourcePath, err := m.GetSharedSourcePath(shared)
+	sourcePath, err := m.GetPostCreateSourcePath(action)
 	if err != nil {
 		return nil, err
 	}
@@ -214,10 +252,10 @@ func (m *Manager) applySharedToAllWorktrees(shared config.Shared) (*SharedApplyR
 		return nil, err
 	}
 
-	result := &SharedApplyResult{
-		Source:       shared.Source,
-		Type:         shared.Type,
-		Managed:      shared.Managed,
+	result := &PostCreateApplyResult{
+		Source:       action.Source,
+		Type:         action.Type,
+		Managed:      action.Managed,
 		SourceBranch: m.Config.Repository.DefaultBranch,
 	}
 
@@ -227,10 +265,10 @@ func (m *Manager) applySharedToAllWorktrees(shared config.Shared) (*SharedApplyR
 		}
 
 		wtName := filepath.Base(wt.Path)
-		targetPath := filepath.Join(wt.Path, shared.Source)
+		targetPath := filepath.Join(wt.Path, action.Source)
 
 		// For non-managed, skip the main worktree (it's the source)
-		if !shared.Managed && pathsEqual(wt.Path, mainWorktree) {
+		if !action.Managed && pathsEqual(wt.Path, mainWorktree) {
 			continue
 		}
 
@@ -245,7 +283,7 @@ func (m *Manager) applySharedToAllWorktrees(shared config.Shared) (*SharedApplyR
 			return nil, fmt.Errorf("failed to create directory for %s: %w", targetPath, err)
 		}
 
-		switch shared.Type {
+		switch action.Type {
 		case "symlink":
 			if err := os.Symlink(absSource, targetPath); err != nil {
 				return nil, fmt.Errorf("failed to create symlink %s: %w", targetPath, err)
@@ -255,7 +293,7 @@ func (m *Manager) applySharedToAllWorktrees(shared config.Shared) (*SharedApplyR
 				return nil, fmt.Errorf("failed to copy to %s: %w", targetPath, err)
 			}
 		default:
-			return nil, fmt.Errorf("unknown shared type: %s", shared.Type)
+			return nil, fmt.Errorf("unknown post-create type: %s", action.Type)
 		}
 
 		result.Applied = append(result.Applied, wtName)
@@ -264,27 +302,36 @@ func (m *Manager) applySharedToAllWorktrees(shared config.Shared) (*SharedApplyR
 	return result, nil
 }
 
-// RemoveShared removes a shared file configuration and cleans up
-func (m *Manager) RemoveShared(source string, removeAll bool) (*SharedRemoveResult, error) {
-	// Find shared config
-	var found *config.Shared
+// RemovePostCreate removes a post-create action configuration and cleans up
+func (m *Manager) RemovePostCreate(source string, removeAll bool) (*PostCreateRemoveResult, error) {
+	// Find action config
+	var found *config.PostCreateAction
 	var foundIndex int
-	for i, s := range m.Config.Shared {
-		if s.Source == source {
-			found = &m.Config.Shared[i]
+	for i, a := range m.Config.PostCreate {
+		if a.Source == source {
+			found = &m.Config.PostCreate[i]
 			foundIndex = i
 			break
 		}
 	}
 
 	if found == nil {
-		return nil, fmt.Errorf("shared file %s is not configured", source)
+		return nil, fmt.Errorf("post-create action %s is not configured", source)
 	}
 
-	result := &SharedRemoveResult{
+	result := &PostCreateRemoveResult{
 		Source:  source,
 		Type:    found.Type,
 		Managed: found.Managed,
+	}
+
+	// For command type, just remove from config
+	if found.Type == "command" {
+		m.Config.PostCreate = append(m.Config.PostCreate[:foundIndex], m.Config.PostCreate[foundIndex+1:]...)
+		if err := config.SaveConfig(m.RepoRoot, m.Config); err != nil {
+			return nil, fmt.Errorf("failed to save config: %w", err)
+		}
+		return result, nil
 	}
 
 	worktrees, err := m.listWorktrees()
@@ -340,7 +387,7 @@ func (m *Manager) RemoveShared(source string, removeAll bool) (*SharedRemoveResu
 	}
 
 	// Remove from config
-	m.Config.Shared = append(m.Config.Shared[:foundIndex], m.Config.Shared[foundIndex+1:]...)
+	m.Config.PostCreate = append(m.Config.PostCreate[:foundIndex], m.Config.PostCreate[foundIndex+1:]...)
 
 	// Save config
 	if err := config.SaveConfig(m.RepoRoot, m.Config); err != nil {
@@ -350,8 +397,8 @@ func (m *Manager) RemoveShared(source string, removeAll bool) (*SharedRemoveResu
 	return result, nil
 }
 
-// SharedRemoveResult represents the result of removing shared configuration
-type SharedRemoveResult struct {
+// PostCreateRemoveResult represents the result of removing post-create configuration
+type PostCreateRemoveResult struct {
 	Source          string
 	Type            string
 	Managed         bool
@@ -360,16 +407,19 @@ type SharedRemoveResult struct {
 	SkippedCopies   []string
 }
 
-// ApplyAllShared applies all shared configurations (for manual config edits)
-func (m *Manager) ApplyAllShared() ([]SharedApplyResult, error) {
-	if len(m.Config.Shared) == 0 {
+// ApplyAllPostCreate applies all post-create configurations (for manual config edits)
+func (m *Manager) ApplyAllPostCreate() ([]PostCreateApplyResult, error) {
+	if len(m.Config.PostCreate) == 0 {
 		return nil, nil
 	}
 
-	// First, check for conflicts across all shared configs
-	var allConflicts []SharedConflict
-	for _, shared := range m.Config.Shared {
-		conflicts, err := m.CheckSharedConflicts(shared.Source, shared.Managed)
+	// First, check for conflicts across all file-based post-create configs
+	var allConflicts []PostCreateConflict
+	for _, action := range m.Config.PostCreate {
+		if action.Type == "command" {
+			continue
+		}
+		conflicts, err := m.CheckPostCreateConflicts(action.Source, action.Managed)
 		if err != nil {
 			return nil, err
 		}
@@ -377,36 +427,45 @@ func (m *Manager) ApplyAllShared() ([]SharedApplyResult, error) {
 	}
 
 	if len(allConflicts) > 0 {
-		return nil, &SharedConflictError{Conflicts: allConflicts}
+		return nil, &PostCreateConflictError{Conflicts: allConflicts}
 	}
 
-	// Apply all shared configs
-	var results []SharedApplyResult
-	for _, shared := range m.Config.Shared {
+	// Apply all post-create configs
+	var results []PostCreateApplyResult
+	for _, action := range m.Config.PostCreate {
+		if action.Type == "command" {
+			// Commands are not applied to existing worktrees
+			results = append(results, PostCreateApplyResult{
+				Source: action.Source,
+				Type:   action.Type,
+			})
+			continue
+		}
+
 		// For managed, ensure source exists in .shared
-		sourcePath, err := m.GetSharedSourcePath(shared)
+		sourcePath, err := m.GetPostCreateSourcePath(action)
 		if err != nil {
 			return nil, err
 		}
 
 		if _, err := os.Stat(sourcePath); os.IsNotExist(err) {
 			// For managed, try to move from main worktree
-			if shared.Managed {
+			if action.Managed {
 				mainWorktree, err := m.getMainWorktreePath()
 				if err != nil {
 					return nil, err
 				}
-				mainSourcePath := filepath.Join(mainWorktree, shared.Source)
+				mainSourcePath := filepath.Join(mainWorktree, action.Source)
 				if _, err := os.Stat(mainSourcePath); err == nil {
 					// Create .shared directory structure
 					sharedDir := m.GetSharedDir()
-					targetPath := filepath.Join(sharedDir, shared.Source)
+					targetPath := filepath.Join(sharedDir, action.Source)
 					if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
 						return nil, fmt.Errorf("failed to create .shared directory: %w", err)
 					}
 					// Move file
 					if err := os.Rename(mainSourcePath, targetPath); err != nil {
-						return nil, fmt.Errorf("failed to move %s to .shared: %w", shared.Source, err)
+						return nil, fmt.Errorf("failed to move %s to .shared: %w", action.Source, err)
 					}
 				}
 			} else {
@@ -415,7 +474,7 @@ func (m *Manager) ApplyAllShared() ([]SharedApplyResult, error) {
 			}
 		}
 
-		result, err := m.applySharedToAllWorktrees(shared)
+		result, err := m.applyPostCreateToAllWorktrees(action)
 		if err != nil {
 			return nil, err
 		}
@@ -425,8 +484,8 @@ func (m *Manager) ApplyAllShared() ([]SharedApplyResult, error) {
 	return results, nil
 }
 
-// GetSharedStatus returns the status of all shared files
-func (m *Manager) GetSharedStatus() ([]SharedStatusInfo, error) {
+// GetPostCreateStatus returns the status of all post-create actions
+func (m *Manager) GetPostCreateStatus() ([]PostCreateStatusInfo, error) {
 	worktrees, err := m.listWorktrees()
 	if err != nil {
 		return nil, err
@@ -437,16 +496,22 @@ func (m *Manager) GetSharedStatus() ([]SharedStatusInfo, error) {
 		return nil, err
 	}
 
-	var statuses []SharedStatusInfo
+	var statuses []PostCreateStatusInfo
 
-	for _, shared := range m.Config.Shared {
-		info := SharedStatusInfo{
-			Source:  shared.Source,
-			Type:    shared.Type,
-			Managed: shared.Managed,
+	for _, action := range m.Config.PostCreate {
+		info := PostCreateStatusInfo{
+			Source:  action.Source,
+			Type:    action.Type,
+			Managed: action.Managed,
 		}
 
-		sourcePath, err := m.GetSharedSourcePath(shared)
+		// Command type doesn't have file status
+		if action.Type == "command" {
+			statuses = append(statuses, info)
+			continue
+		}
+
+		sourcePath, err := m.GetPostCreateSourcePath(action)
 		if err != nil {
 			return nil, err
 		}
@@ -460,15 +525,15 @@ func (m *Manager) GetSharedStatus() ([]SharedStatusInfo, error) {
 			}
 
 			wtName := filepath.Base(wt.Path)
-			targetPath := filepath.Join(wt.Path, shared.Source)
+			targetPath := filepath.Join(wt.Path, action.Source)
 
 			// For non-managed, main worktree is the source
-			if !shared.Managed && pathsEqual(wt.Path, mainWorktree) {
+			if !action.Managed && pathsEqual(wt.Path, mainWorktree) {
 				info.SourceWorktree = wtName
 				continue
 			}
 
-			status := SharedStatus{
+			status := PostCreateStatus{
 				WorktreeName: wtName,
 				WorktreePath: targetPath,
 			}
@@ -503,8 +568,8 @@ func (m *Manager) GetSharedStatus() ([]SharedStatusInfo, error) {
 	return statuses, nil
 }
 
-// SharedStatusInfo represents the status of a shared configuration
-type SharedStatusInfo struct {
+// PostCreateStatusInfo represents the status of a post-create configuration
+type PostCreateStatusInfo struct {
 	Source         string
 	Type           string
 	Managed        bool
@@ -523,28 +588,62 @@ func (m *Manager) listWorktrees() ([]WorktreeInfo, error) {
 	return ParseWorktreeList(output), nil
 }
 
-// SharedConflictError is returned when conflicts are detected
-type SharedConflictError struct {
-	Conflicts []SharedConflict
+// PostCreateConflictError is returned when conflicts are detected
+type PostCreateConflictError struct {
+	Conflicts []PostCreateConflict
 }
 
-func (e *SharedConflictError) Error() string {
+func (e *PostCreateConflictError) Error() string {
 	return fmt.Sprintf("conflicts detected in %d location(s)", len(e.Conflicts))
 }
 
-// ApplySharedConfig applies shared file/directory configuration to a worktree
-func (m *Manager) ApplySharedConfig(worktreePath string) error {
-	if len(m.Config.Shared) == 0 {
-		return nil
-	}
+// ExecutePostCreateCommands executes all command-type post-create actions in a worktree
+func (m *Manager) ExecutePostCreateCommands(worktreePath string) []CommandResult {
+	var results []CommandResult
 
-	for _, shared := range m.Config.Shared {
-		sourcePath, err := m.GetSharedSourcePath(shared)
-		if err != nil {
-			return err
+	for _, action := range m.Config.PostCreate {
+		if action.Type != "command" {
+			continue
 		}
 
-		targetPath := filepath.Join(worktreePath, shared.Source)
+		result := CommandResult{
+			Command: action.Source,
+		}
+
+		cmd := exec.Command("sh", "-c", action.Source)
+		cmd.Dir = worktreePath
+
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			result.Success = false
+			result.Error = err.Error()
+			result.Output = string(output)
+		} else {
+			result.Success = true
+			result.Output = string(output)
+		}
+
+		results = append(results, result)
+	}
+
+	return results
+}
+
+// ApplyPostCreateConfig applies post-create file/directory configuration to a worktree
+// and executes any configured commands
+func (m *Manager) ApplyPostCreateConfig(worktreePath string) ([]CommandResult, error) {
+	// Apply file-based actions first
+	for _, action := range m.Config.PostCreate {
+		if action.Type == "command" {
+			continue
+		}
+
+		sourcePath, err := m.GetPostCreateSourcePath(action)
+		if err != nil {
+			return nil, err
+		}
+
+		targetPath := filepath.Join(worktreePath, action.Source)
 
 		// Check if source exists
 		if _, err := os.Stat(sourcePath); os.IsNotExist(err) {
@@ -554,7 +653,7 @@ func (m *Manager) ApplySharedConfig(worktreePath string) error {
 
 		// Create parent directories
 		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
-			return fmt.Errorf("failed to create parent directory for %s: %w", targetPath, err)
+			return nil, fmt.Errorf("failed to create parent directory for %s: %w", targetPath, err)
 		}
 
 		// Check if target already exists
@@ -563,29 +662,32 @@ func (m *Manager) ApplySharedConfig(worktreePath string) error {
 			continue
 		}
 
-		switch shared.Type {
+		switch action.Type {
 		case "symlink":
 			// Create symlink with absolute path
 			absSource, err := filepath.Abs(sourcePath)
 			if err != nil {
-				return fmt.Errorf("failed to get absolute path for %s: %w", sourcePath, err)
+				return nil, fmt.Errorf("failed to get absolute path for %s: %w", sourcePath, err)
 			}
 
 			if err := os.Symlink(absSource, targetPath); err != nil {
-				return fmt.Errorf("failed to create symlink %s -> %s: %w", targetPath, absSource, err)
+				return nil, fmt.Errorf("failed to create symlink %s -> %s: %w", targetPath, absSource, err)
 			}
 
 		case "copy":
 			if err := copyFile(sourcePath, targetPath); err != nil {
-				return fmt.Errorf("failed to copy %s to %s: %w", sourcePath, targetPath, err)
+				return nil, fmt.Errorf("failed to copy %s to %s: %w", sourcePath, targetPath, err)
 			}
 
 		default:
-			return fmt.Errorf("unknown shared type: %s", shared.Type)
+			return nil, fmt.Errorf("unknown post-create type: %s", action.Type)
 		}
 	}
 
-	return nil
+	// Execute commands after file operations
+	commandResults := m.ExecutePostCreateCommands(worktreePath)
+
+	return commandResults, nil
 }
 
 // getMainWorktreePath returns the path to the main worktree (default branch worktree)

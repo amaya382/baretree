@@ -8,7 +8,7 @@ import (
 var Cmd = &cobra.Command{
 	Use:   "config",
 	Short: "Manage baretree configuration (export, import)",
-	Long: `Manage baretree configuration including repository settings, worktree settings, and shared files.
+	Long: `Manage baretree configuration including repository settings and post-create actions.
 
 Export and import operations allow you to backup, share, or transfer baretree configurations
 between repositories.

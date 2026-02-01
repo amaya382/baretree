@@ -165,30 +165,45 @@ bt unbare main ~/standalone-repo  # Export worktree as standalone repo
 
 ---
 
-## 🔗 Shared Files
+## 🔗 Post-create Actions
+
+Automate worktree setup with shared files and commands that run on creation.
+
+### Shared Files
 
 Share files like `.env` or `node_modules` across all worktrees automatically.
 
 ```bash
 # Add shared files (symlink by default, stored in .shared/ directory)
-bt shared add .env
-bt shared add node_modules
+bt post-create add symlink .env
+bt post-create add symlink node_modules
 
 # Use copy instead of symlink for files that need independent copies
-bt shared add .vscode/settings.json --type copy
+bt post-create add copy .vscode/settings.json
 
 # Use --no-managed to source from default branch instead of .shared/
-bt shared add .env --no-managed
+bt post-create add symlink .env --no-managed
 ```
 
-New worktrees automatically get these files linked.
+### Commands
+
+Run commands automatically when creating new worktrees.
+
+```bash
+# Add commands to run after worktree creation
+bt post-create add command "npm install"
+bt post-create add command "direnv allow"
+```
+
+Commands are executed in the new worktree directory. Failures are warnings (won't block worktree creation).
 
 ### More commands
 
 ```bash
-bt shared list              # Show configured files
-bt shared apply             # Apply to all worktrees
-bt shared remove .env       # Remove configuration
+bt post-create list              # Show configured actions
+bt post-create apply             # Apply to all worktrees
+bt post-create remove .env       # Remove configuration
+bt post-create remove "npm install"  # Remove command
 ```
 
 ---
@@ -250,14 +265,16 @@ cp examples/rules/git_worktree_with_baretree.md .cursor/rules/
 | `bt repo migrate <path> -i` | `bt migrate` | Convert existing repo in-place |
 | `bt repo migrate <path> -d <dest>` | `bt migrate` | Convert and copy to destination |
 
-### Shared Files
+### Post-create Actions
 
 | Command | Description |
 |---------|-------------|
-| `bt shared add <file>` | Add shared file |
-| `bt shared remove <file>` | Remove shared file |
-| `bt shared list` | List shared files |
-| `bt shared apply` | Apply to all worktrees |
+| `bt post-create add symlink <file>` | Add shared file as symlink |
+| `bt post-create add copy <file>` | Add shared file as copy |
+| `bt post-create add command <cmd>` | Add command to run on creation |
+| `bt post-create remove <source>` | Remove action |
+| `bt post-create list` | List configured actions |
+| `bt post-create apply` | Apply to existing worktrees |
 
 ### Configuration
 
@@ -379,4 +396,4 @@ bt repair --source=dir --all  # Fix (use directory name as source)
 ## Related Projects
 
 - [ghq](https://github.com/x-motemen/ghq) - Repository management tool (inspiration for `bt repo get/list/remove`)
-- [wtp](https://github.com/satococoa/wtp) - Worktree management tool (inspiration for `bt shared`)
+- [wtp](https://github.com/satococoa/wtp) - Worktree management tool (inspiration for `bt post-create`)

@@ -6,8 +6,8 @@ import (
 	"testing"
 )
 
-// TestJourney4_SharedFiles tests shared file configuration
-func TestJourney4_SharedFiles(t *testing.T) {
+// TestJourney4_PostCreateFiles tests post-create file configuration
+func TestJourney4_PostCreateFiles(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping e2e test in short mode")
 	}
@@ -15,8 +15,8 @@ func TestJourney4_SharedFiles(t *testing.T) {
 	tempDir := createTempDir(t, "journey4")
 
 	// Clone
-	runBtSuccess(t, tempDir, "repo", "clone", TestRepo, "shared-test")
-	projectDir := filepath.Join(tempDir, "shared-test")
+	runBtSuccess(t, tempDir, "repo", "clone", TestRepo, "postcreate-test")
+	projectDir := filepath.Join(tempDir, "postcreate-test")
 
 	// Find the default branch worktree (main or master)
 	var mainWorktree string
@@ -29,7 +29,7 @@ func TestJourney4_SharedFiles(t *testing.T) {
 	}
 
 	// Create shared file in main worktree
-	t.Run("setup shared file", func(t *testing.T) {
+	t.Run("setup post-create file", func(t *testing.T) {
 		envPath := filepath.Join(mainWorktree, ".env")
 		err := os.WriteFile(envPath, []byte("SECRET=test123\nAPI_KEY=abc"), 0644)
 		if err != nil {
@@ -37,16 +37,16 @@ func TestJourney4_SharedFiles(t *testing.T) {
 		}
 	})
 
-	// Configure shared files using bt shared add
-	t.Run("configure shared files", func(t *testing.T) {
-		runBtSuccess(t, projectDir, "shared", "add", ".env", "--type", "symlink")
+	// Configure post-create files using bt post-create add
+	t.Run("configure post-create files", func(t *testing.T) {
+		runBtSuccess(t, projectDir, "post-create", "add", "symlink", ".env")
 	})
 
-	// Add new worktree (should apply shared config)
-	t.Run("add worktree with shared files", func(t *testing.T) {
-		runBtSuccess(t, projectDir, "add", "-b", "feature/shared")
+	// Add new worktree (should apply post-create config)
+	t.Run("add worktree with post-create files", func(t *testing.T) {
+		runBtSuccess(t, projectDir, "add", "-b", "feature/postcreate")
 
-		featureDir := filepath.Join(projectDir, "feature", "shared")
+		featureDir := filepath.Join(projectDir, "feature", "postcreate")
 		envPath := filepath.Join(featureDir, ".env")
 
 		// Check that .env exists (as symlink)
@@ -64,23 +64,23 @@ func TestJourney4_SharedFiles(t *testing.T) {
 		}
 	})
 
-	// Verify shared file is shown in status
-	t.Run("status shows shared config", func(t *testing.T) {
+	// Verify post-create is shown in status
+	t.Run("status shows post-create config", func(t *testing.T) {
 		stdout := runBtSuccess(t, projectDir, "status")
 
-		assertOutputContains(t, stdout, "Shared files")
+		assertOutputContains(t, stdout, "Post-create actions")
 		assertOutputContains(t, stdout, ".env")
 		assertOutputContains(t, stdout, "symlink")
 	})
 }
 
-// TestSharedFileCopy tests copy type shared files
-func TestSharedFileCopy(t *testing.T) {
+// TestPostCreateFileCopy tests copy type post-create files
+func TestPostCreateFileCopy(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping e2e test in short mode")
 	}
 
-	tempDir := createTempDir(t, "shared-copy")
+	tempDir := createTempDir(t, "postcreate-copy")
 
 	runBtSuccess(t, tempDir, "repo", "clone", TestRepo, "copy-test")
 	projectDir := filepath.Join(tempDir, "copy-test")
@@ -97,8 +97,8 @@ func TestSharedFileCopy(t *testing.T) {
 	testFile := filepath.Join(mainWorktree, "config.local")
 	_ = os.WriteFile(testFile, []byte("local config"), 0644)
 
-	// Configure as copy using bt shared add
-	runBtSuccess(t, projectDir, "shared", "add", "config.local", "--type", "copy")
+	// Configure as copy using bt post-create add
+	runBtSuccess(t, projectDir, "post-create", "add", "copy", "config.local")
 
 	// Add worktree
 	t.Run("copy type creates regular file", func(t *testing.T) {

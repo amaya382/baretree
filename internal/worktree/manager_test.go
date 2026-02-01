@@ -63,7 +63,7 @@ func TestIsManaged(t *testing.T) {
 	}
 }
 
-func TestSharedConfigApply(t *testing.T) {
+func TestPostCreateConfigApply(t *testing.T) {
 	// Create temp directory structure
 	tempDir, err := os.MkdirTemp("", "baretree-test-*")
 	if err != nil {
@@ -89,26 +89,35 @@ func TestSharedConfigApply(t *testing.T) {
 		t.Fatalf("failed to create feature dir: %v", err)
 	}
 
-	// Create config with shared files
+	// Create config with post-create actions
 	cfg := &config.Config{
 		Repository: config.Repository{},
-		Shared: []config.Shared{
+		PostCreate: []config.PostCreateAction{
 			{Source: ".env", Type: "symlink"},
+			{Source: "npm install", Type: "command"},
 		},
 	}
 
-	// Note: We can't fully test ApplySharedConfig without a real git repository
+	// Note: We can't fully test ApplyPostCreateConfig without a real git repository
 	// because getMainWorktreePath() requires git worktree list to work
 	// This test just verifies the config structure is correct
-	if len(cfg.Shared) != 1 {
-		t.Errorf("expected 1 shared config, got %d", len(cfg.Shared))
+	if len(cfg.PostCreate) != 2 {
+		t.Errorf("expected 2 post-create configs, got %d", len(cfg.PostCreate))
 	}
 
-	if cfg.Shared[0].Source != ".env" {
-		t.Errorf("expected shared source '.env', got %q", cfg.Shared[0].Source)
+	if cfg.PostCreate[0].Source != ".env" {
+		t.Errorf("expected post-create source '.env', got %q", cfg.PostCreate[0].Source)
 	}
 
-	if cfg.Shared[0].Type != "symlink" {
-		t.Errorf("expected shared type 'symlink', got %q", cfg.Shared[0].Type)
+	if cfg.PostCreate[0].Type != "symlink" {
+		t.Errorf("expected post-create type 'symlink', got %q", cfg.PostCreate[0].Type)
+	}
+
+	if cfg.PostCreate[1].Source != "npm install" {
+		t.Errorf("expected post-create source 'npm install', got %q", cfg.PostCreate[1].Source)
+	}
+
+	if cfg.PostCreate[1].Type != "command" {
+		t.Errorf("expected post-create type 'command', got %q", cfg.PostCreate[1].Type)
 	}
 }

@@ -23,28 +23,28 @@ var importCmd = &cobra.Command{
 	Long: `Import baretree configuration from TOML format.
 
 This imports all baretree-related settings including:
-  - Repository settings (bare directory, default branch)
-  - Shared files configuration
+  - Repository settings (default branch)
+  - Post-create actions (symlink, copy, command)
 
 Reads from a file or stdin if no file is specified.
 
 By default, replaces the existing configuration.
-Use --merge to add shared entries without removing existing ones
-(repository and worktree settings are always updated).
-Use --apply to immediately apply shared file changes to all worktrees.
+Use --merge to add post-create entries without removing existing ones
+(repository settings are always updated).
+Use --apply to immediately apply post-create file changes to all worktrees.
 
 Examples:
   bt config import config.toml           # Import from file
   cat config.toml | bt config import     # Import from stdin
-  bt config import config.toml --merge   # Merge shared files with existing
-  bt config import config.toml --apply   # Import and apply shared files`,
+  bt config import config.toml --merge   # Merge post-create actions with existing
+  bt config import config.toml --apply   # Import and apply post-create files`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runImport,
 }
 
 func init() {
-	importCmd.Flags().BoolVar(&importMerge, "merge", false, "Merge shared files with existing configuration instead of replacing")
-	importCmd.Flags().BoolVar(&importApply, "apply", false, "Apply shared file changes to all worktrees after import")
+	importCmd.Flags().BoolVar(&importMerge, "merge", false, "Merge post-create actions with existing configuration instead of replacing")
+	importCmd.Flags().BoolVar(&importApply, "apply", false, "Apply post-create file changes to all worktrees after import")
 	importCmd.Flags().BoolVar(&importDryRun, "dry-run", false, "Show what would be imported without making changes")
 }
 
@@ -97,13 +97,17 @@ func runImport(cmd *cobra.Command, args []string) error {
 	fmt.Println("[repository]")
 	fmt.Printf("  default_branch: %s\n", importedCfg.Repository.DefaultBranch)
 	fmt.Println()
-	fmt.Printf("[shared] (%d entries)\n", len(importedCfg.Shared))
-	for _, s := range importedCfg.Shared {
-		modeStr := ""
-		if s.Managed {
-			modeStr = " (managed)"
+	fmt.Printf("[postcreate] (%d entries)\n", len(importedCfg.PostCreate))
+	for _, a := range importedCfg.PostCreate {
+		if a.Type == "command" {
+			fmt.Printf("  %s [command]\n", a.Source)
+		} else {
+			modeStr := ""
+			if a.Managed {
+				modeStr = " (managed)"
+			}
+			fmt.Printf("  %s [%s]%s\n", a.Source, a.Type, modeStr)
 		}
-		fmt.Printf("  %s [%s]%s\n", s.Source, s.Type, modeStr)
 	}
 	fmt.Println()
 
@@ -116,26 +120,26 @@ func runImport(cmd *cobra.Command, args []string) error {
 	// Repository and worktree settings are always updated
 	currentCfg.Repository = importedCfg.Repository
 
-	// Handle shared files based on merge flag
+	// Handle post-create actions based on merge flag
 	if importMerge {
 		// Merge: add new entries, skip existing
 		existingMap := make(map[string]bool)
-		for _, s := range currentCfg.Shared {
-			existingMap[s.Source] = true
+		for _, a := range currentCfg.PostCreate {
+			existingMap[a.Source] = true
 		}
 
 		added := 0
-		for _, s := range importedCfg.Shared {
-			if !existingMap[s.Source] {
-				currentCfg.Shared = append(currentCfg.Shared, s)
+		for _, a := range importedCfg.PostCreate {
+			if !existingMap[a.Source] {
+				currentCfg.PostCreate = append(currentCfg.PostCreate, a)
 				added++
 			}
 		}
 		fmt.Printf("Repository and worktree settings updated\n")
-		fmt.Printf("Shared files: added %d new entry(ies), %d already existed\n", added, len(importedCfg.Shared)-added)
+		fmt.Printf("Post-create actions: added %d new entry(ies), %d already existed\n", added, len(importedCfg.PostCreate)-added)
 	} else {
 		// Replace
-		currentCfg.Shared = importedCfg.Shared
+		currentCfg.PostCreate = importedCfg.PostCreate
 		fmt.Printf("Replaced entire configuration\n")
 	}
 
@@ -145,29 +149,33 @@ func runImport(cmd *cobra.Command, args []string) error {
 	}
 
 	// Apply if requested
-	if importApply && len(currentCfg.Shared) > 0 {
+	if importApply && len(currentCfg.PostCreate) > 0 {
 		bareDir, err := repository.GetBareRepoPath(repoRoot)
 		if err != nil {
 			return fmt.Errorf("failed to get bare repo path: %w", err)
 		}
 
 		wtMgr := worktree.NewManager(repoRoot, bareDir, currentCfg)
-		results, err := wtMgr.ApplyAllShared()
+		results, err := wtMgr.ApplyAllPostCreate()
 		if err != nil {
-			return fmt.Errorf("failed to apply shared files: %w", err)
+			return fmt.Errorf("failed to apply post-create actions: %w", err)
 		}
 
 		fmt.Println()
-		fmt.Println("Applied shared files:")
+		fmt.Println("Applied post-create actions:")
 		for _, result := range results {
-			fmt.Printf("  %s: applied to %d worktree(s)\n", result.Source, len(result.Applied))
+			if result.Type == "command" {
+				fmt.Printf("  %s: (command, not applied to existing worktrees)\n", result.Source)
+			} else {
+				fmt.Printf("  %s: applied to %d worktree(s)\n", result.Source, len(result.Applied))
+			}
 		}
 	}
 
 	fmt.Println()
 	fmt.Println("Import completed successfully")
-	if !importApply && len(currentCfg.Shared) > 0 {
-		fmt.Println("Run 'bt shared apply' to apply shared file changes to all worktrees")
+	if !importApply && len(currentCfg.PostCreate) > 0 {
+		fmt.Println("Run 'bt post-create apply' to apply file changes to all worktrees")
 	}
 
 	return nil

@@ -128,25 +128,25 @@ For parallel task worktrees (`task/*`), clean up immediately after task:
 bt rm task/explore-1 --with-branch
 ```
 
-## Shared File Awareness
+## Post-create Actions Awareness
 
-Baretree can share files across worktrees via symlinks. New worktrees automatically get configured shared files linked.
+Baretree can share files across worktrees via symlinks and run commands automatically when creating new worktrees.
 
-**Check Shared Configuration:**
+**Check Post-create Configuration:**
 
 ```bash
-bt shared list
+bt post-create list
 ```
 
 **Understanding Shared Files:**
 
-- Files listed by `bt shared list` are shared across all worktrees
+- Files listed by `bt post-create list` (symlink/copy types) are shared across all worktrees
 - Shared files are stored in `.shared/` directory and symlinked to each worktree
 - Changes to symlinked files affect **all worktrees simultaneously**
 
 **Before Editing Shared Files:**
 
-1. **Check if file is shared**: Run `bt shared list`
+1. **Check if file is shared**: Run `bt post-create list`
 2. **Detect symlinks**: Verify with `ls -la <filename>` (symlinks show `->` arrow)
 3. **Warn user** if file is shared:
 
@@ -186,11 +186,13 @@ bt rm <worktree> --with-branch # Remove worktree and branch
 bt repair --all                # Fix worktree/branch mismatches
 ```
 
-**Shared Files:**
+**Post-create Actions:**
 
 ```bash
-bt shared list         # List configured shared files
-bt shared add <file>   # Add shared file
-bt shared remove <file># Remove from shared config
-bt shared apply        # Apply shared files to all worktrees
+bt post-create list                  # List configured actions
+bt post-create add symlink <file>    # Add shared file as symlink
+bt post-create add copy <file>       # Add shared file as copy
+bt post-create add command "<cmd>"   # Add command to run on creation
+bt post-create remove <source>       # Remove action
+bt post-create apply                 # Apply to all worktrees
 ```

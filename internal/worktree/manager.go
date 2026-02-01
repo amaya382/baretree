@@ -107,9 +107,9 @@ func (m *Manager) AddWithOptions(branchName string, opts AddOptions) (string, er
 		return "", fmt.Errorf("failed to add worktree: %w", err)
 	}
 
-	// Apply shared file configuration
-	if err := m.ApplySharedConfig(worktreePath); err != nil {
-		return "", fmt.Errorf("failed to apply shared config: %w", err)
+	// Apply post-create configuration (files and commands)
+	if _, err := m.ApplyPostCreateConfig(worktreePath); err != nil {
+		return "", fmt.Errorf("failed to apply post-create config: %w", err)
 	}
 
 	return worktreePath, nil

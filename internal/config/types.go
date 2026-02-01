@@ -6,10 +6,10 @@ const BareDir = ".git"
 
 // Config represents the baretree configuration.
 // Runtime storage: git-config ([baretree] section in .git/config)
-// Export/import format: TOML (for 'bt shared export/import')
+// Export/import format: TOML (for 'bt config export/import')
 type Config struct {
-	Repository Repository `toml:"repository"`
-	Shared     []Shared   `toml:"shared"`
+	Repository Repository         `toml:"repository"`
+	PostCreate []PostCreateAction `toml:"postcreate"`
 }
 
 // Repository configuration
@@ -17,11 +17,12 @@ type Repository struct {
 	DefaultBranch string `toml:"default_branch"`
 }
 
-// Shared file/directory configuration
-type Shared struct {
-	Source  string `toml:"source"`
-	Type    string `toml:"type"`    // "symlink" or "copy"
-	Managed bool   `toml:"managed"` // if true, source is in .shared/ directory
+// PostCreateAction represents an action to perform after worktree creation.
+// Type can be "symlink", "copy", or "command".
+type PostCreateAction struct {
+	Source  string `toml:"source"`  // file path for symlink/copy, command string for command
+	Type    string `toml:"type"`    // "symlink", "copy", or "command"
+	Managed bool   `toml:"managed"` // if true, source is in .shared/ directory (symlink/copy only)
 }
 
 // DefaultConfig returns a default configuration
@@ -30,6 +31,6 @@ func DefaultConfig() *Config {
 		Repository: Repository{
 			DefaultBranch: "main",
 		},
-		Shared: []Shared{},
+		PostCreate: []PostCreateAction{},
 	}
 }

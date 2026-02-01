@@ -1,4 +1,4 @@
-package shared
+package postcreate
 
 import (
 	"errors"
@@ -16,26 +16,29 @@ var (
 
 var applyCmd = &cobra.Command{
 	Use:   "apply",
-	Short: "Apply shared configuration to all worktrees",
-	Long: `Apply shared file configuration to all worktrees.
+	Short: "Apply post-create file actions to all worktrees",
+	Long: `Apply post-create file configuration to all worktrees.
 
-Use this command after adding shared configuration with 'bt shared add'
-or after importing configuration with 'bt shared import'.
+Use this command after adding post-create configuration with 'bt post-create add'
+or after importing configuration with 'bt config import'.
+
+Note: Commands are NOT executed by this operation. Commands are only
+executed when a new worktree is created with 'bt add'.
 
 If any conflicts are detected (files already exist in worktrees),
 the entire operation will fail and no changes will be made.
 
 Examples:
-  bt shared apply
-  bt shared apply --dry-run`,
-	RunE: runSharedApply,
+  bt post-create apply
+  bt post-create apply --dry-run`,
+	RunE: runPostCreateApply,
 }
 
 func init() {
 	applyCmd.Flags().BoolVar(&applyDryRun, "dry-run", false, "Show what would be done without making changes")
 }
 
-func runSharedApply(cmd *cobra.Command, args []string) error {
+func runPostCreateApply(cmd *cobra.Command, args []string) error {
 	// Find repository root
 	cwd, err := cmd.Flags().GetString("cwd")
 	if err != nil || cwd == "" {
@@ -60,8 +63,17 @@ func runSharedApply(cmd *cobra.Command, args []string) error {
 	}
 	cfg := repoMgr.Config
 
-	if len(cfg.Shared) == 0 {
-		fmt.Println("No shared files configured.")
+	// Count file-based actions
+	fileActionCount := 0
+	for _, action := range cfg.PostCreate {
+		if action.Type != "command" {
+			fileActionCount++
+		}
+	}
+
+	if fileActionCount == 0 {
+		fmt.Println("No file-based post-create actions configured.")
+		fmt.Println("Note: Command actions are only executed when creating new worktrees.")
 		return nil
 	}
 
@@ -74,14 +86,17 @@ func runSharedApply(cmd *cobra.Command, args []string) error {
 		fmt.Println("Dry run: showing what would be done...")
 		fmt.Println()
 	} else {
-		fmt.Println("Applying shared configuration...")
+		fmt.Println("Applying post-create configuration...")
 		fmt.Println()
 	}
 
 	// Check for conflicts first
-	var allConflicts []worktree.SharedConflict
-	for _, shared := range cfg.Shared {
-		conflicts, err := mgr.CheckSharedConflicts(shared.Source, shared.Managed)
+	var allConflicts []worktree.PostCreateConflict
+	for _, action := range cfg.PostCreate {
+		if action.Type == "command" {
+			continue
+		}
+		conflicts, err := mgr.CheckPostCreateConflicts(action.Source, action.Managed)
 		if err != nil {
 			return err
 		}
@@ -99,17 +114,20 @@ func runSharedApply(cmd *cobra.Command, args []string) error {
 
 	if applyDryRun {
 		// Just show what would be done
-		for _, shared := range cfg.Shared {
-			printSharedInfo(shared, defaultBranch)
+		for _, action := range cfg.PostCreate {
+			if action.Type == "command" {
+				continue
+			}
+			printPostCreateInfo(action, defaultBranch)
 		}
 		fmt.Println("No changes made (dry run).")
 		return nil
 	}
 
-	// Apply all shared configs
-	results, err := mgr.ApplyAllShared()
+	// Apply all post-create configs
+	results, err := mgr.ApplyAllPostCreate()
 	if err != nil {
-		var conflictErr *worktree.SharedConflictError
+		var conflictErr *worktree.PostCreateConflictError
 		if errors.As(err, &conflictErr) {
 			fmt.Println("Error: conflicts detected, no changes made")
 			fmt.Println()
@@ -122,7 +140,11 @@ func runSharedApply(cmd *cobra.Command, args []string) error {
 	}
 
 	// Show results
+	appliedCount := 0
 	for _, result := range results {
+		if result.Type == "command" {
+			continue
+		}
 		modeStr := ""
 		if result.Managed {
 			modeStr = ", managed"
@@ -160,16 +182,17 @@ func runSharedApply(cmd *cobra.Command, args []string) error {
 		}
 
 		fmt.Println()
+		appliedCount++
 	}
 
-	fmt.Printf("+ Applied %d shared configuration(s).\n", len(results))
+	fmt.Printf("+ Applied %d post-create action(s).\n", appliedCount)
 
 	return nil
 }
 
-func printConflicts(conflicts []worktree.SharedConflict) {
+func printConflicts(conflicts []worktree.PostCreateConflict) {
 	// Group by source
-	bySource := make(map[string][]worktree.SharedConflict)
+	bySource := make(map[string][]worktree.PostCreateConflict)
 	for _, c := range conflicts {
 		bySource[c.Source] = append(bySource[c.Source], c)
 	}
@@ -183,19 +206,19 @@ func printConflicts(conflicts []worktree.SharedConflict) {
 	}
 }
 
-func printSharedInfo(shared config.Shared, defaultBranch string) {
+func printPostCreateInfo(action config.PostCreateAction, defaultBranch string) {
 	modeStr := ""
-	if shared.Managed {
+	if action.Managed {
 		modeStr = ", managed"
 	}
-	fmt.Printf("%s (%s%s):\n", shared.Source, shared.Type, modeStr)
+	fmt.Printf("%s (%s%s):\n", action.Source, action.Type, modeStr)
 
-	if shared.Managed {
-		fmt.Printf("  Source: %s/%s -> .shared/%s (move)\n", defaultBranch, shared.Source, shared.Source)
+	if action.Managed {
+		fmt.Printf("  Source: %s/%s -> .shared/%s (move)\n", defaultBranch, action.Source, action.Source)
 		fmt.Printf("  Would create symlinks in all worktrees\n")
 	} else {
-		fmt.Printf("  Source: %s/%s\n", defaultBranch, shared.Source)
-		if shared.Type == "symlink" {
+		fmt.Printf("  Source: %s/%s\n", defaultBranch, action.Source)
+		if action.Type == "symlink" {
 			fmt.Printf("  Would create symlinks in other worktrees\n")
 		} else {
 			fmt.Printf("  Would copy to other worktrees\n")

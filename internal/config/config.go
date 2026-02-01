@@ -8,7 +8,7 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-// ConfigFileName is used only for 'bt shared export/import' operations.
+// ConfigFileName is used only for 'bt config export/import' operations.
 // Runtime configuration is stored in git-config, not in this file.
 const ConfigFileName = "baretree.toml"
 
@@ -52,32 +52,32 @@ func ImportConfigFromTOML(data string) (*Config, error) {
 	return &config, nil
 }
 
-// ExportSharedToTOML exports only the shared configuration to TOML format
-func ExportSharedToTOML(shared []Shared) (string, error) {
+// ExportPostCreateToTOML exports only the post-create configuration to TOML format
+func ExportPostCreateToTOML(actions []PostCreateAction) (string, error) {
 	// Create a wrapper struct for clean TOML output
-	type sharedConfig struct {
-		Shared []Shared `toml:"shared"`
+	type postCreateConfig struct {
+		PostCreate []PostCreateAction `toml:"postcreate"`
 	}
-	cfg := sharedConfig{Shared: shared}
+	cfg := postCreateConfig{PostCreate: actions}
 
 	var buf bytes.Buffer
 	encoder := toml.NewEncoder(&buf)
 	if err := encoder.Encode(cfg); err != nil {
-		return "", fmt.Errorf("failed to encode shared config: %w", err)
+		return "", fmt.Errorf("failed to encode post-create config: %w", err)
 	}
 	return buf.String(), nil
 }
 
-// ImportSharedFromTOML imports shared configuration from TOML format
-func ImportSharedFromTOML(data string) ([]Shared, error) {
-	type sharedConfig struct {
-		Shared []Shared `toml:"shared"`
+// ImportPostCreateFromTOML imports post-create configuration from TOML format
+func ImportPostCreateFromTOML(data string) ([]PostCreateAction, error) {
+	type postCreateConfig struct {
+		PostCreate []PostCreateAction `toml:"postcreate"`
 	}
-	var cfg sharedConfig
+	var cfg postCreateConfig
 	if err := toml.Unmarshal([]byte(data), &cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse TOML: %w", err)
 	}
-	return cfg.Shared, nil
+	return cfg.PostCreate, nil
 }
 
 // SaveConfigToTOMLFile saves the configuration to a TOML file (for export)

@@ -75,7 +75,7 @@ go vet ./...
 2. **Git-config for all configuration**: Use git-config (`[baretree]` section) for all configuration
    - Per-repository settings stored in `.git/config`
    - Cross-repository settings (like root directory) in global `~/.gitconfig`
-   - TOML format only used for `bt shared export/import` (portable configuration sharing)
+   - TOML format only used for `bt config export/import` (portable configuration sharing)
    - Avoid external config files that duplicate Git's native mechanisms
 
 ## Testing
@@ -219,29 +219,37 @@ Per-repository configuration is stored in git-config (`.git/config`):
 [baretree]
     defaultBranch = main
 
-[baretree "shared"]
-    # Shared file entries stored as: source:type:managed
-    file = .env:symlink:false
-    file = config/local.json:copy:false
+```
+
+Post-create actions are stored as `baretree.postcreate`:
+```ini
+[baretree]
+    postcreate = .env:symlink:managed
+    postcreate = config/local.json:copy
+    postcreate = npm install:command
 ```
 
 Key settings:
-- `baretree.defaultBranch`: Used to identify the main worktree for shared files
-- `baretree "shared".file`: List of files/directories to share across worktrees
+- `baretree.defaultBranch`: Used to identify the main worktree for post-create files
+- `baretree.postcreate`: List of post-create actions (format: `source:type` or `source:type:managed`)
 
 ### Export/Import (TOML format)
 
-For sharing configuration between repositories, use `bt shared export/import`:
+For sharing configuration between repositories, use `bt config export/import`:
 
 ```bash
-bt shared export -o shared.toml    # Export to TOML file
-bt shared import shared.toml       # Import from TOML file
+bt config export -o config.toml    # Export to TOML file
+bt config import config.toml       # Import from TOML file
 ```
 
 TOML format (for export/import only):
 ```toml
-[[shared]]
+[[postcreate]]
 source = ".env"
 type = "symlink"
-managed = false
+managed = true
+
+[[postcreate]]
+source = "npm install"
+type = "command"
 ```

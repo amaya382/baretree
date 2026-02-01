@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/amaya382/baretree/cmd/bt/config"
+	"github.com/amaya382/baretree/cmd/bt/postcreate"
 	"github.com/amaya382/baretree/cmd/bt/repo"
-	"github.com/amaya382/baretree/cmd/bt/shared"
 	"github.com/spf13/cobra"
 )
 
@@ -101,7 +101,7 @@ Use "{{.CommandPath}} [command] --help" for more information about a command.{{e
 	renameCmd.GroupID = groupWorktree
 	repairCmd.GroupID = groupWorktree
 	showRootCmd.GroupID = groupWorktree
-	shared.Cmd.GroupID = groupWorktree
+	postcreate.Cmd.GroupID = groupWorktree
 	unbareCmd.GroupID = groupWorktree
 	config.Cmd.GroupID = groupWorktree
 
@@ -139,7 +139,7 @@ Use "{{.CommandPath}} [command] --help" for more information about a command.{{e
 	rootCmd.AddCommand(shellInitCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(repo.Cmd)
-	rootCmd.AddCommand(shared.Cmd)
+	rootCmd.AddCommand(postcreate.Cmd)
 	rootCmd.AddCommand(renameCmd)
 	rootCmd.AddCommand(unbareCmd)
 	rootCmd.AddCommand(config.Cmd)

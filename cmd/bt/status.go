@@ -83,6 +83,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Print worktrees
 	fmt.Println("Worktrees:")
+	fmt.Printf("     %-20s  %-30s  %s\n", "BRANCH", "PATH", "STATUS")
 	var unmanagedWorktrees []string
 
 	// Determine which worktree we're currently in

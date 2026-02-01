@@ -104,6 +104,19 @@ Repository migration tests.
 | `TestMigrate_WithNestedBranchNameAndExistingDir_InPlace` | In-place migration with nested branch when existing directory matches branch prefix |
 | `TestMigrate_WithNestedBranchName_Destination` | Migration with `-d` when checked out to nested branch |
 
+### migrate_default_branch_test.go
+
+Default branch detection tests for migration.
+
+| Test Case | Test Purpose |
+|-----------|--------------|
+| `TestMigrate_DefaultBranchDetection_InPlace` | Migration from feature branch creates main worktree |
+| `TestMigrate_DefaultBranchDetection_FromMain` | Migration from main only creates main worktree |
+| `TestMigrate_DefaultBranchDetection_Destination` | Default branch detection with `-d` flag |
+| `TestMigrate_DefaultBranchDetection_FallbackToMaster` | Fallback to master when no remote |
+| `TestMigrate_DefaultBranchDetection_FallbackToCurrentBranch` | Fallback to current branch when no remote/main/master |
+| `TestMigrate_DefaultBranchDetection_FallbackFromFeatureToCurrentBranch` | Feature branch becomes default when no remote/main/master |
+
 ### journey_remote_test.go
 
 Remote branch operation tests.

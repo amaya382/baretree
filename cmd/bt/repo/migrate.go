@@ -327,12 +327,32 @@ func migrateInPlaceImpl(absSource, currentBranch string, externalWorktrees []git
 		fmt.Fprintf(os.Stderr, "Warning: failed to update some submodule paths: %v\n", err)
 	}
 
-	// Step 7: Initialize baretree config
-	if err := repository.InitializeBareRepo(absSource, currentBranch); err != nil {
+	// Step 7: Detect default branch and initialize baretree config
+	defaultBranch, err := git.GetDefaultBranch(barePath)
+	if err != nil {
+		// Fallback to current branch if detection fails
+		defaultBranch = currentBranch
+	}
+
+	if defaultBranch != currentBranch {
+		fmt.Printf("Default branch: %s (detected from remote)\n", defaultBranch)
+	}
+
+	if err := repository.InitializeBareRepo(absSource, defaultBranch); err != nil {
 		return fmt.Errorf("failed to initialize config: %w", err)
 	}
 
-	// Step 8: Move external worktrees into the baretree structure
+	// Step 8: Create default branch worktree if different from current branch
+	var defaultBranchWorktreePath string
+	if defaultBranch != currentBranch {
+		defaultBranchWorktreePath = filepath.Join(absSource, defaultBranch)
+		if _, err := bareExecutor.Execute("worktree", "add", defaultBranchWorktreePath, defaultBranch); err != nil {
+			fmt.Printf("Warning: failed to create default branch worktree: %v\n", err)
+			defaultBranchWorktreePath = "" // Clear on failure
+		}
+	}
+
+	// Step 9: Move external worktrees into the baretree structure
 	movedWorktrees, err := migrateExternalWorktrees(absSource, barePath, bareExecutor, externalWorktrees)
 	if err != nil {
 		return fmt.Errorf("failed to migrate external worktrees: %w", err)
@@ -342,6 +362,9 @@ func migrateInPlaceImpl(absSource, currentBranch string, externalWorktrees []git
 	fmt.Printf("  Repository root: %s\n", absSource)
 	fmt.Printf("  Bare repo: %s\n", barePath)
 	fmt.Printf("  Worktree: %s\n", worktreePath)
+	if defaultBranchWorktreePath != "" {
+		fmt.Printf("  Worktree: %s (default branch)\n", defaultBranchWorktreePath)
+	}
 	for _, wt := range movedWorktrees {
 		fmt.Printf("  Worktree: %s\n", wt)
 	}
@@ -492,13 +515,33 @@ func migrateToDestination(absSource, absDestination, currentBranch string, exter
 		fmt.Fprintf(os.Stderr, "Warning: failed to update some submodule paths: %v\n", err)
 	}
 
-	// Step 7: Initialize baretree config
-	if err := repository.InitializeBareRepo(absDestination, currentBranch); err != nil {
+	// Step 7: Detect default branch and initialize baretree config
+	defaultBranch, err := git.GetDefaultBranch(barePath)
+	if err != nil {
+		// Fallback to current branch if detection fails
+		defaultBranch = currentBranch
+	}
+
+	if defaultBranch != currentBranch {
+		fmt.Printf("Default branch: %s (detected from remote)\n", defaultBranch)
+	}
+
+	if err := repository.InitializeBareRepo(absDestination, defaultBranch); err != nil {
 		os.RemoveAll(absDestination)
 		return fmt.Errorf("failed to initialize config: %w", err)
 	}
 
-	// Step 8: Copy and migrate external worktrees
+	// Step 8: Create default branch worktree if different from current branch
+	var defaultBranchWorktreePath string
+	if defaultBranch != currentBranch {
+		defaultBranchWorktreePath = filepath.Join(absDestination, defaultBranch)
+		if _, err := bareExecutor.Execute("worktree", "add", defaultBranchWorktreePath, defaultBranch); err != nil {
+			fmt.Printf("Warning: failed to create default branch worktree: %v\n", err)
+			defaultBranchWorktreePath = "" // Clear on failure
+		}
+	}
+
+	// Step 9: Copy and migrate external worktrees
 	movedWorktrees, err := migrateExternalWorktreesWithCopy(absDestination, barePath, bareExecutor, externalWorktrees)
 	if err != nil {
 		os.RemoveAll(absDestination)
@@ -509,6 +552,9 @@ func migrateToDestination(absSource, absDestination, currentBranch string, exter
 	fmt.Printf("  New repository: %s\n", absDestination)
 	fmt.Printf("  Bare repo: %s\n", barePath)
 	fmt.Printf("  Worktree: %s\n", worktreePath)
+	if defaultBranchWorktreePath != "" {
+		fmt.Printf("  Worktree: %s (default branch)\n", defaultBranchWorktreePath)
+	}
 	for _, wt := range movedWorktrees {
 		fmt.Printf("  Worktree: %s\n", wt)
 	}

@@ -37,8 +37,9 @@ Examples:
   bt repo cd amaya382/baretree           # Match by org/repo
   bt repo cd github.com/amaya382/baretree # Match by full path
   bt repo cd -                           # Go to previous repository`,
-	Args: cobra.ExactArgs(1),
-	RunE: runRepoCd,
+	Args:              cobra.ExactArgs(1),
+	RunE:              runRepoCd,
+	ValidArgsFunction: completeRepositoryNames(true),
 }
 
 func init() {

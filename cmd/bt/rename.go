@@ -29,8 +29,9 @@ If they are not, use 'bt repair' to fix the inconsistency first.
 Examples:
   bt rename feature/new-name           # Rename current worktree
   bt rename feature/old feature/new    # Rename specified worktree`,
-	Args: cobra.RangeArgs(1, 2),
-	RunE: runRename,
+	Args:              cobra.RangeArgs(1, 2),
+	RunE:              runRename,
+	ValidArgsFunction: completeWorktreeForRename,
 }
 
 // Note: renameCmd is registered in main.go

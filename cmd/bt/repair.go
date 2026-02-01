@@ -46,8 +46,9 @@ Examples:
   bt repair --dry-run                 # Show what would be done
   bt repair --fix-paths               # Fix paths after moving repository
   bt repair --fix-paths /path/to/ext  # Fix path for externally moved worktree`,
-	Args: cobra.ArbitraryArgs,
-	RunE: runRepair,
+	Args:              cobra.ArbitraryArgs,
+	RunE:              runRepair,
+	ValidArgsFunction: completeWorktreeNames(false),
 }
 
 func init() {

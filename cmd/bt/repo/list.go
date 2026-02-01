@@ -30,8 +30,9 @@ Examples:
   bt repo list --paths
   bt repo list github.com
   bt repo list --json`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: runList,
+	Args:              cobra.MaximumNArgs(1),
+	RunE:              runList,
+	ValidArgsFunction: completeRepositoryNames(false),
 }
 
 func init() {

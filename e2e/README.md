@@ -210,6 +210,32 @@ Conversion from baretree to regular repository tests.
 | `TestUnbare_SubmoduleStagingState` | Submodule staging state preservation |
 | `TestUnbare_DestinationExists` | Failure when destination already exists |
 
+### completion_test.go
+
+Shell completion tests using Cobra's `__complete` mechanism.
+
+| Test Case | Test Purpose |
+|-----------|--------------|
+| `TestCompletion_Worktree/cd_command_completes_worktree_names_with_special_args` | cd command completes worktree names and @/- |
+| `TestCompletion_Worktree/remove_command_completes_worktree_names_without_special_args` | remove command completes worktree names only |
+| `TestCompletion_Worktree/rename_command_completes_worktree_names` | rename command completes worktree names |
+| `TestCompletion_Worktree/repair_command_completes_worktree_names` | repair command completes worktree names |
+| `TestCompletion_Worktree/unbare_first_arg_completes_worktree_names` | unbare first arg completes worktree names |
+| `TestCompletion_Worktree/unbare_second_arg_falls_back_to_file_completion` | unbare second arg uses file completion |
+| `TestCompletion_Flags/add_command_completes_flags` | add command completes --branch, --base, etc. |
+| `TestCompletion_Flags/remove_command_completes_flags` | remove command completes --force, --with-branch |
+| `TestCompletion_Flags/list_command_completes_flags` | list command completes --json, --paths |
+| `TestCompletion_Flags/repair_command_completes_flags` | repair command completes --dry-run, --source, etc. |
+| `TestCompletion_Subcommands/root_command_completes_subcommands` | Root command completes add, cd, repo, etc. |
+| `TestCompletion_Subcommands/repo_command_completes_subcommands` | repo command completes init, clone, etc. |
+| `TestCompletion_Subcommands/config_command_completes_subcommands` | config command completes export, import |
+| `TestCompletion_Subcommands/post-create_command_completes_subcommands` | post-create command completes add, remove, etc. |
+| `TestCompletion_Subcommands/shell-init_completes_shell_names` | shell-init completes bash, zsh, fish |
+| `TestCompletion_Repository/go_command_completes_repository_names_with_-` | go command completes repository names and - |
+| `TestCompletion_Repository/repo_cd_command_completes_repository_names` | repo cd command completes repository names |
+| `TestCompletion_Repository/repos_command_completes_repository_names_without_-` | repos command completes repository names (no -) |
+| `TestCompletion_PartialMatch/partial_match_filters_completions` | Partial input filters completion candidates |
+
 ## Running Tests
 
 ```bash

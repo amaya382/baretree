@@ -32,8 +32,9 @@ Examples:
   bt unbare feature/auth ~/repos/auth-feature
   bt unbare @ ~/repos/main-copy
   bt unbare main ../standalone-main`,
-	Args: cobra.ExactArgs(2),
-	RunE: runUnbare,
+	Args:              cobra.ExactArgs(2),
+	RunE:              runUnbare,
+	ValidArgsFunction: completeWorktreeThenPath,
 }
 
 func runUnbare(cmd *cobra.Command, args []string) error {

@@ -42,8 +42,9 @@ Examples:
   bt cd feature/test
   bt cd @
   bt cd -`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: runCd,
+	Args:              cobra.MaximumNArgs(1),
+	RunE:              runCd,
+	ValidArgsFunction: completeWorktreeNames(true),
 }
 
 func runCd(cmd *cobra.Command, args []string) error {

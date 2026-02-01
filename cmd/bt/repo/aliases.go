@@ -97,8 +97,9 @@ Examples:
   bt go amaya382/baretree           # Match by org/repo
   bt go github.com/amaya382/baretree # Match by full path
   bt go -                           # Go to previous repository`,
-	Args: cobra.ExactArgs(1),
-	RunE: runRepoCd,
+	Args:              cobra.ExactArgs(1),
+	RunE:              runRepoCd,
+	ValidArgsFunction: completeRepositoryNames(true),
 }
 
 // ReposAliasCmd is a top-level alias for "bt repo list"
@@ -117,6 +118,7 @@ Examples:
 	Args:               cobra.MaximumNArgs(1),
 	RunE:               runList,
 	DisableFlagParsing: false,
+	ValidArgsFunction:  completeRepositoryNames(false),
 }
 
 func init() {

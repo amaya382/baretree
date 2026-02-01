@@ -58,8 +58,8 @@ func init() {
 	// Set version template to match the version subcommand output
 	rootCmd.SetVersionTemplate(fmt.Sprintf("baretree %s\n  commit: %s\n  built:  %s\n", version, commit, date))
 
-	// Disable the auto-generated completion command (use shell-init instead)
-	rootCmd.CompletionOptions.DisableDefaultCmd = true
+	// Hide completion command from help (use shell-init for full shell integration)
+	rootCmd.CompletionOptions.HiddenDefaultCmd = true
 
 	// Disable Cobra's automatic error printing to avoid duplicate error messages
 	// Errors are printed manually in main()

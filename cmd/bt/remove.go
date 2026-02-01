@@ -31,8 +31,9 @@ Examples:
   bt remove feature/auth
   bt rm feature/auth --with-branch
   bt rm feature/auth --force`,
-	Args: cobra.ExactArgs(1),
-	RunE: runRemove,
+	Args:              cobra.ExactArgs(1),
+	RunE:              runRemove,
+	ValidArgsFunction: completeWorktreeNames(false),
 }
 
 func init() {

@@ -55,13 +55,14 @@ if type -q bt
     command bt completion fish | source
 end
 
-# Custom completion for bt go/repo cd with substring matching
-function __bt_repo_completion
+# Custom completion for bt with substring matching
+function __bt_custom_completion
     set -l cur (commandline -ct)
     set -l cmd (commandline -opc)
 
     # Check command structure
     if test (count $cmd) -ge 2
+        # Repository completion
         if test "$cmd[2]" = "go"
             command bt __complete go "$cur" 2>/dev/null | head -n -1
             return 0
@@ -71,13 +72,34 @@ function __bt_repo_completion
         else if test (count $cmd) -ge 3 -a "$cmd[2]" = "repo" -a "$cmd[3]" = "cd"
             command bt __complete repo cd "$cur" 2>/dev/null | head -n -1
             return 0
+        # Worktree completion
+        else if test "$cmd[2]" = "cd"
+            command bt __complete cd "$cur" 2>/dev/null | head -n -1
+            return 0
+        else if test "$cmd[2]" = "remove"
+            command bt __complete remove "$cur" 2>/dev/null | head -n -1
+            return 0
+        else if test "$cmd[2]" = "rename"
+            command bt __complete rename "$cur" 2>/dev/null | head -n -1
+            return 0
+        else if test "$cmd[2]" = "repair"
+            command bt __complete repair "$cur" 2>/dev/null | head -n -1
+            return 0
+        else if test "$cmd[2]" = "unbare"
+            command bt __complete unbare "$cur" 2>/dev/null | head -n -1
+            return 0
         end
     end
     return 1
 end
 
-# Register custom completion for bt go and bt repo cd
-complete -c bt -n '__fish_seen_subcommand_from go' -f -a '(__bt_repo_completion)'
-complete -c bt -n '__fish_seen_subcommand_from repos' -f -a '(__bt_repo_completion)'
-complete -c bt -n '__fish_seen_subcommand_from repo; and __fish_seen_subcommand_from cd' -f -a '(__bt_repo_completion)'
+# Register custom completion for bt commands with substring matching
+complete -c bt -n '__fish_seen_subcommand_from go' -f -a '(__bt_custom_completion)'
+complete -c bt -n '__fish_seen_subcommand_from repos' -f -a '(__bt_custom_completion)'
+complete -c bt -n '__fish_seen_subcommand_from repo; and __fish_seen_subcommand_from cd' -f -a '(__bt_custom_completion)'
+complete -c bt -n '__fish_seen_subcommand_from cd' -f -a '(__bt_custom_completion)'
+complete -c bt -n '__fish_seen_subcommand_from remove' -f -a '(__bt_custom_completion)'
+complete -c bt -n '__fish_seen_subcommand_from rename' -f -a '(__bt_custom_completion)'
+complete -c bt -n '__fish_seen_subcommand_from repair' -f -a '(__bt_custom_completion)'
+complete -c bt -n '__fish_seen_subcommand_from unbare' -f -a '(__bt_custom_completion)'
 `

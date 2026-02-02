@@ -67,22 +67,30 @@ func ScanRepositories(roots []string) ([]RepoInfo, error) {
 	return repos, nil
 }
 
-// FilterRepositories filters repositories by a query string
+// FilterRepositories filters repositories by a query string.
+// Results are ordered with prefix matches first, then substring matches.
 func FilterRepositories(repos []RepoInfo, query string) []RepoInfo {
 	if query == "" {
 		return repos
 	}
 
 	query = strings.ToLower(query)
-	var filtered []RepoInfo
+	var prefixMatches []RepoInfo
+	var substringMatches []RepoInfo
 
 	for _, repo := range repos {
-		// Match against relative path or name
-		if strings.Contains(strings.ToLower(repo.RelativePath), query) ||
-			strings.Contains(strings.ToLower(repo.Name), query) {
-			filtered = append(filtered, repo)
+		relPathLower := strings.ToLower(repo.RelativePath)
+		nameLower := strings.ToLower(repo.Name)
+
+		// Check for prefix match (name starts with query)
+		if strings.HasPrefix(nameLower, query) {
+			prefixMatches = append(prefixMatches, repo)
+		} else if strings.Contains(relPathLower, query) || strings.Contains(nameLower, query) {
+			// Substring match (not a prefix match)
+			substringMatches = append(substringMatches, repo)
 		}
 	}
 
-	return filtered
+	// Return prefix matches first, then substring matches
+	return append(prefixMatches, substringMatches...)
 }

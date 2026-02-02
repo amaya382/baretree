@@ -235,6 +235,12 @@ Shell completion tests using Cobra's `__complete` mechanism.
 | `TestCompletion_Repository/repo_cd_command_completes_repository_names` | repo cd command completes repository names |
 | `TestCompletion_Repository/repos_command_completes_repository_names_without_-` | repos command completes repository names (no -) |
 | `TestCompletion_PartialMatch/partial_match_filters_completions` | Partial input filters completion candidates |
+| `TestCompletion_SubstringMatch/worktree_completion_includes_both_prefix_and_substring_matches` | Worktree completion includes prefix and substring matches |
+| `TestCompletion_SubstringMatch/worktree_completion_prioritizes_prefix_matches_over_substring_matches` | Prefix matches come before substring matches |
+| `TestCompletion_SubstringMatch/special_completions_excluded_when_filter_is_applied` | @/- excluded when filter is applied |
+| `TestCompletion_RepositorySubstringMatch/repository_completion_includes_both_prefix_and_substring_matches` | Repository completion includes prefix and substring matches |
+| `TestCompletion_RepositorySubstringMatch/repository_completion_prioritizes_prefix_matches` | Repository prefix matches come before substring matches |
+| `TestCompletion_RepositorySubstringMatch/special_completion_'-'_excluded_when_filter_is_applied` | - excluded when filter is applied |
 
 ## Running Tests
 

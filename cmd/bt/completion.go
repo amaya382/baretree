@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/amaya382/baretree/internal/repository"
 	"github.com/amaya382/baretree/internal/worktree"
@@ -11,6 +12,7 @@ import (
 
 // completeWorktreeNames returns worktree names for shell completion.
 // If includeSpecial is true, it also includes @ (default worktree) and - (previous).
+// Results are ordered with prefix matches first, then substring matches.
 func completeWorktreeNames(includeSpecial bool) func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		completions := []string{}
@@ -46,22 +48,59 @@ func completeWorktreeNames(includeSpecial bool) func(cmd *cobra.Command, args []
 			return completions, cobra.ShellCompDirectiveNoFileComp
 		}
 
+		// Collect worktree names
+		var names []string
 		for _, wt := range worktrees {
 			// Use relative path from repo root as completion
 			relPath, err := filepath.Rel(repoRoot, wt.Path)
 			if err != nil {
 				continue
 			}
-			completions = append(completions, relPath)
+			names = append(names, relPath)
 		}
 
-		// Add special completions
-		if includeSpecial {
-			completions = append(completions, "@", "-")
+		// Filter and order by prefix match first, then substring match
+		completions = filterWithPrefixPriority(names, toComplete)
+
+		// Add special completions (only when no filter or matches special chars)
+		if includeSpecial && (toComplete == "" || toComplete == "@" || toComplete == "-") {
+			if toComplete == "" {
+				completions = append(completions, "@", "-")
+			} else if toComplete == "@" {
+				completions = append(completions, "@")
+			} else if toComplete == "-" {
+				completions = append(completions, "-")
+			}
 		}
 
 		return completions, cobra.ShellCompDirectiveNoFileComp
 	}
+}
+
+// filterWithPrefixPriority filters strings by query with prefix matches first.
+// If query is empty, returns all items unchanged.
+func filterWithPrefixPriority(items []string, query string) []string {
+	if query == "" {
+		return items
+	}
+
+	queryLower := strings.ToLower(query)
+	var prefixMatches []string
+	var substringMatches []string
+
+	for _, item := range items {
+		itemLower := strings.ToLower(item)
+		// Check for prefix match
+		if strings.HasPrefix(itemLower, queryLower) {
+			prefixMatches = append(prefixMatches, item)
+		} else if strings.Contains(itemLower, queryLower) {
+			// Substring match (not a prefix match)
+			substringMatches = append(substringMatches, item)
+		}
+	}
+
+	// Return prefix matches first, then substring matches
+	return append(prefixMatches, substringMatches...)
 }
 
 // completeWorktreeThenPath returns worktree names for the first argument,

@@ -50,21 +50,34 @@ bt() {
     fi
 }
 
-# Source Cobra-generated completion
+# Source Cobra-generated completion (defines _bt function)
 if (( $+commands[bt] )); then
     source <(command bt completion zsh)
 fi
 
-# Custom completion for bt go/repo cd with substring matching
+# Custom completion for bt with substring matching
 _bt_custom() {
     local cur="${words[CURRENT]}"
     local cmd="${words[2]}"
     local subcmd="${words[3]}"
 
-    # Check if we're completing bt go or bt repo cd
-    if [[ "$cmd" == "go" && $CURRENT -eq 3 ]] || \
-       [[ "$cmd" == "repo" && "$subcmd" == "cd" && $CURRENT -eq 4 ]] || \
-       [[ "$cmd" == "repos" && $CURRENT -eq 3 ]]; then
+    # Worktree completion (bt cd, bt remove, bt rename, bt repair, bt unbare)
+    if [[ "$cmd" == "cd" ]] || \
+       [[ "$cmd" == "remove" ]] || \
+       [[ "$cmd" == "rename" ]] || \
+       [[ "$cmd" == "repair" ]] || \
+       [[ "$cmd" == "unbare" ]]; then
+        local completions
+        completions=("${(@f)$(command bt __complete "$cmd" "$cur" 2>/dev/null | sed '$d')}")
+        # -U: suppress usual matching, -V: keep order (no sorting)
+        compadd -U -V unsorted -a completions
+        return 0
+    fi
+
+    # Repository completion (bt go, bt repo cd, bt repos)
+    if [[ "$cmd" == "go" ]] || \
+       [[ "$cmd" == "repos" ]] || \
+       [[ "$cmd" == "repo" && "$subcmd" == "cd" ]]; then
         local completions
         if [[ "$cmd" == "go" ]]; then
             completions=("${(@f)$(command bt __complete go "$cur" 2>/dev/null | sed '$d')}")
@@ -73,8 +86,8 @@ _bt_custom() {
         else
             completions=("${(@f)$(command bt __complete repo cd "$cur" 2>/dev/null | sed '$d')}")
         fi
-        # Use compadd -U to suppress usual matching (allows substring matches)
-        compadd -U -a completions
+        # -U: suppress usual matching, -V: keep order (no sorting)
+        compadd -U -V unsorted -a completions
         return 0
     fi
 

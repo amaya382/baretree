@@ -55,17 +55,17 @@ if command -v bt &> /dev/null; then
     source <(command bt completion bash)
 fi
 
-# Custom completion for bt go/repo cd with substring matching
-_bt_repo_completion() {
+# Custom completion for bt with substring matching
+_bt_custom_completion() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     local cmd="${COMP_WORDS[1]}"
     local subcmd="${COMP_WORDS[2]}"
 
-    # Check if we're completing bt go or bt repo cd
+    # Check if we're completing commands that need substring matching
     if [[ "$cmd" == "go" && $COMP_CWORD -eq 2 ]] || \
        [[ "$cmd" == "repo" && "$subcmd" == "cd" && $COMP_CWORD -eq 3 ]] || \
        [[ "$cmd" == "repos" && $COMP_CWORD -eq 2 ]]; then
-        # Get completions from bt __complete (excludes the directive line)
+        # Repository completion
         local completions
         if [[ "$cmd" == "go" ]]; then
             completions=$(command bt __complete go "$cur" 2>/dev/null | sed '$d')
@@ -74,7 +74,18 @@ _bt_repo_completion() {
         else
             completions=$(command bt __complete repo cd "$cur" 2>/dev/null | sed '$d')
         fi
-        # Use compgen without pattern matching (empty string) to include all matches
+        COMPREPLY=( $completions )
+        return 0
+    fi
+
+    # Worktree completion (bt cd, bt remove, bt rename, bt repair, bt unbare)
+    if [[ "$cmd" == "cd" && $COMP_CWORD -eq 2 ]] || \
+       [[ "$cmd" == "remove" && $COMP_CWORD -eq 2 ]] || \
+       [[ "$cmd" == "rename" && $COMP_CWORD -eq 2 ]] || \
+       [[ "$cmd" == "repair" && $COMP_CWORD -eq 2 ]] || \
+       [[ "$cmd" == "unbare" && $COMP_CWORD -eq 2 ]]; then
+        local completions
+        completions=$(command bt __complete "$cmd" "$cur" 2>/dev/null | sed '$d')
         COMPREPLY=( $completions )
         return 0
     fi
@@ -84,5 +95,5 @@ _bt_repo_completion() {
 }
 
 # Register custom completion for bt (wraps Cobra's completion)
-complete -o default -F _bt_repo_completion bt
+complete -o default -F _bt_custom_completion bt
 `

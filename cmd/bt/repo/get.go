@@ -128,6 +128,8 @@ func runGet(cmd *cobra.Command, args []string) error {
 	fmt.Printf("\n✓ Successfully cloned repository\n")
 	fmt.Printf("  Repository: %s\n", destination)
 	fmt.Printf("  Worktree: %s\n", defaultWorktreePath)
+	fmt.Printf("\nTo navigate to this repository:\n")
+	fmt.Printf("  bt go %s\n", repoPath.String())
 
 	return nil
 }

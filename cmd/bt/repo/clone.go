@@ -8,6 +8,7 @@ import (
 	"github.com/amaya382/baretree/internal/config"
 	"github.com/amaya382/baretree/internal/git"
 	"github.com/amaya382/baretree/internal/repository"
+	"github.com/amaya382/baretree/internal/url"
 	"github.com/spf13/cobra"
 )
 
@@ -106,6 +107,12 @@ func runClone(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  cd %s\n", absDestination)
 	fmt.Printf("  bt add -b <branch-name>  # Create a new worktree\n")
 	fmt.Printf("  bt list                  # List all worktrees\n")
+
+	// Show bt go hint if repository path can be parsed
+	if repoPath, err := url.ParseRemoteURL(repoURL); err == nil {
+		fmt.Printf("\nIf this repository is under baretree root, you can also use:\n")
+		fmt.Printf("  bt go %s\n", repoPath.String())
+	}
 
 	return nil
 }

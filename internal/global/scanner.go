@@ -4,8 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/amaya382/baretree/internal/repository"
 )
 
 // RepoInfo holds information about a discovered repository
@@ -42,8 +40,9 @@ func ScanRepositories(roots []string) ([]RepoInfo, error) {
 				return filepath.SkipDir
 			}
 
-			// Check if this is a baretree repository
-			if repository.IsBaretreeRepo(path) {
+			// Check if this directory contains a .git directory (is a repository)
+			gitDir := filepath.Join(path, ".git")
+			if info, err := os.Stat(gitDir); err == nil && info.IsDir() {
 				if !seen[path] {
 					seen[path] = true
 					relPath, _ := filepath.Rel(root, path)

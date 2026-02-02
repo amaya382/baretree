@@ -41,7 +41,7 @@ task dev -- <args>  # Run with arguments
 ### Using Go directly
 
 ```bash
-go build ./cmd/bt/
+go build -buildvcs=false ./cmd/bt/
 go test -v -short ./...        # Unit tests only
 go test -v ./e2e/...           # E2E tests
 go test -v ./...               # All tests

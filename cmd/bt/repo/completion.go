@@ -29,13 +29,16 @@ func completeRepositoryNames(includePrevious bool) func(cmd *cobra.Command, args
 			return completions, cobra.ShellCompDirectiveNoFileComp
 		}
 
-		for _, repo := range repos {
+		// Filter repositories by partial match if toComplete is provided
+		filteredRepos := global.FilterRepositories(repos, toComplete)
+
+		for _, repo := range filteredRepos {
 			// Add relative path for completion
 			completions = append(completions, repo.RelativePath)
 		}
 
-		// Add special completions
-		if includePrevious {
+		// Add special completions (only when no filter or "-" matches)
+		if includePrevious && (toComplete == "" || toComplete == "-") {
 			completions = append(completions, "-")
 		}
 

@@ -54,4 +54,35 @@ bt() {
 if command -v bt &> /dev/null; then
     source <(command bt completion bash)
 fi
+
+# Custom completion for bt go/repo cd with substring matching
+_bt_repo_completion() {
+    local cur="${COMP_WORDS[COMP_CWORD]}"
+    local cmd="${COMP_WORDS[1]}"
+    local subcmd="${COMP_WORDS[2]}"
+
+    # Check if we're completing bt go or bt repo cd
+    if [[ "$cmd" == "go" && $COMP_CWORD -eq 2 ]] || \
+       [[ "$cmd" == "repo" && "$subcmd" == "cd" && $COMP_CWORD -eq 3 ]] || \
+       [[ "$cmd" == "repos" && $COMP_CWORD -eq 2 ]]; then
+        # Get completions from bt __complete (excludes the directive line)
+        local completions
+        if [[ "$cmd" == "go" ]]; then
+            completions=$(command bt __complete go "$cur" 2>/dev/null | sed '$d')
+        elif [[ "$cmd" == "repos" ]]; then
+            completions=$(command bt __complete repos "$cur" 2>/dev/null | sed '$d')
+        else
+            completions=$(command bt __complete repo cd "$cur" 2>/dev/null | sed '$d')
+        fi
+        # Use compgen without pattern matching (empty string) to include all matches
+        COMPREPLY=( $completions )
+        return 0
+    fi
+
+    # Fall back to Cobra-generated completion for other commands
+    __start_bt
+}
+
+# Register custom completion for bt (wraps Cobra's completion)
+complete -o default -F _bt_repo_completion bt
 `

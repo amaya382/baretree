@@ -10,6 +10,7 @@ const BareDir = ".git"
 type Config struct {
 	Repository Repository         `toml:"repository"`
 	PostCreate []PostCreateAction `toml:"postcreate"`
+	SyncToRoot []SyncToRootAction `toml:"synctoroot"`
 }
 
 // Repository configuration
@@ -25,6 +26,12 @@ type PostCreateAction struct {
 	Managed bool   `toml:"managed"` // if true, source is in .shared/ directory (symlink/copy only)
 }
 
+// SyncToRootAction represents a file/directory to symlink from the default branch worktree to the repository root.
+type SyncToRootAction struct {
+	Source string `toml:"source"` // relative path in default branch worktree
+	Target string `toml:"target"` // relative path in repository root (empty means same as source)
+}
+
 // DefaultConfig returns a default configuration
 func DefaultConfig() *Config {
 	return &Config{
@@ -32,5 +39,6 @@ func DefaultConfig() *Config {
 			DefaultBranch: "main",
 		},
 		PostCreate: []PostCreateAction{},
+		SyncToRoot: []SyncToRootAction{},
 	}
 }

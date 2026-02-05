@@ -208,9 +208,91 @@ bt post-create remove "npm install"  # Remove command
 
 ---
 
+## 🔗 Sync to Root
+
+Make files from the default branch worktree accessible at the repository root via symlinks. This is useful for tools that need to find configuration files at the project root.
+
+```bash
+# Sync CLAUDE.md to repository root
+bt sync-to-root add CLAUDE.md
+
+# Sync a directory
+bt sync-to-root add .claude
+
+# Use a different target name
+bt sync-to-root add docs/guide.md guide.md
+
+# List configured entries
+bt sync-to-root list
+
+# Remove entry
+bt sync-to-root remove CLAUDE.md
+
+# Re-apply all symlinks
+bt sync-to-root apply
+```
+
+After configuration:
+```
+project/
+├── .git/
+├── main/
+│   ├── CLAUDE.md
+│   └── .claude/
+├── CLAUDE.md -> main/CLAUDE.md     # Accessible from root
+├── .claude -> main/.claude         # Accessible from root
+└── feature/auth/
+```
+
+---
+
 ## 🤖 AI Agent Integration
 
 baretree's worktree-based structure is ideal for AI coding assistants like Claude Code, Cursor, and GitHub Copilot Workspace. Each worktree provides an isolated workspace.
+
+### Recommended Setup: Open Project Root as Workspace
+
+For the best experience with AI agents and editors, open the **project root** (not individual worktrees) as your workspace:
+
+```bash
+# Open the project root in your editor
+code ~/baretree/github.com/user/my-project  # VS Code
+cursor ~/baretree/github.com/user/my-project  # Cursor
+
+# Start Claude Code from the project root
+cd ~/baretree/github.com/user/my-project
+claude
+```
+
+Then use `sync-to-root` to make AI configuration files accessible from the root:
+
+```bash
+bt sync-to-root add CLAUDE.md
+bt sync-to-root add .claude
+bt sync-to-root add .cursorrules  # For Cursor
+```
+
+This setup provides:
+- **Unified view**: See all worktrees (main, feature/auth, etc.) in one workspace
+- **AI config at root**: `CLAUDE.md` and `.claude/` are recognized by AI agents
+- **Easy context switching**: Jump between worktrees without changing windows
+- **Consistent rules**: Agent rules apply across all worktrees
+
+Your project structure:
+```
+my-project/                      # <- Open this as workspace
+├── .git/
+├── CLAUDE.md -> main/CLAUDE.md  # AI agents see this
+├── .claude -> main/.claude      # AI agents see this
+├── main/
+│   ├── CLAUDE.md                # Actual file
+│   ├── .claude/
+│   └── src/
+└── feature/
+    └── auth/                    # Work on features here
+```
+
+![](./docs/img/vscode.png)
 
 ### Agent Rules Template
 
@@ -275,6 +357,15 @@ cp examples/rules/working-directory-on-git-worktree-with-baretree.md .cursor/rul
 | `bt post-create remove <source>` | Remove action |
 | `bt post-create list` | List configured actions |
 | `bt post-create apply` | Apply to existing worktrees |
+
+### Sync to Root
+
+| Command | Description |
+|---------|-------------|
+| `bt sync-to-root add <source> [target]` | Symlink file/dir from default worktree to repo root |
+| `bt sync-to-root remove <source>` | Remove entry and symlink |
+| `bt sync-to-root list` | List configured entries |
+| `bt sync-to-root apply` | Re-apply all symlinks |
 
 ### Configuration
 

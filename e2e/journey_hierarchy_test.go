@@ -106,14 +106,15 @@ func TestRefConflict(t *testing.T) {
 		projectDir := filepath.Join(tempDir, "conflict-test-1")
 
 		// Create parent branch first
-		runBtSuccess(t, projectDir, "add", "-b", "feat")
-		assertFileExists(t, filepath.Join(projectDir, "feat"))
+		// Use unique test-specific branch name to avoid conflicts with real development branches
+		runBtSuccess(t, projectDir, "add", "-b", "test-ref-conflict-parent")
+		assertFileExists(t, filepath.Join(projectDir, "test-ref-conflict-parent"))
 
 		// Try to create child branch - should fail with user-friendly error
-		_, stderr := runBtExpectError(t, projectDir, "add", "-b", "feat/child")
+		_, stderr := runBtExpectError(t, projectDir, "add", "-b", "test-ref-conflict-parent/child")
 
 		// Check error message contains useful information
-		assertOutputContains(t, stderr, "feat")
+		assertOutputContains(t, stderr, "test-ref-conflict-parent")
 		assertOutputContains(t, stderr, "conflict")
 	})
 
@@ -124,14 +125,15 @@ func TestRefConflict(t *testing.T) {
 		projectDir := filepath.Join(tempDir, "conflict-test-2")
 
 		// Create child branch first
-		runBtSuccess(t, projectDir, "add", "-b", "feature/auth")
-		assertFileExists(t, filepath.Join(projectDir, "feature", "auth"))
+		// Use unique test-specific branch name to avoid conflicts with real development branches
+		runBtSuccess(t, projectDir, "add", "-b", "test-ref-conflict-child/auth")
+		assertFileExists(t, filepath.Join(projectDir, "test-ref-conflict-child", "auth"))
 
 		// Try to create parent branch - should fail with user-friendly error
-		_, stderr := runBtExpectError(t, projectDir, "add", "-b", "feature")
+		_, stderr := runBtExpectError(t, projectDir, "add", "-b", "test-ref-conflict-child")
 
 		// Check error message contains useful information
-		assertOutputContains(t, stderr, "feature")
+		assertOutputContains(t, stderr, "test-ref-conflict-child")
 		assertOutputContains(t, stderr, "conflict")
 	})
 
@@ -142,15 +144,16 @@ func TestRefConflict(t *testing.T) {
 		projectDir := filepath.Join(tempDir, "conflict-test-3")
 
 		// Create deep branch first
-		runBtSuccess(t, projectDir, "add", "-b", "a/b/c")
-		assertFileExists(t, filepath.Join(projectDir, "a", "b", "c"))
+		// Use unique test-specific branch name to avoid conflicts with real development branches
+		runBtSuccess(t, projectDir, "add", "-b", "test-ref-deep/nested/branch")
+		assertFileExists(t, filepath.Join(projectDir, "test-ref-deep", "nested", "branch"))
 
 		// Try to create intermediate branch - should fail
-		_, stderr := runBtExpectError(t, projectDir, "add", "-b", "a/b")
+		_, stderr := runBtExpectError(t, projectDir, "add", "-b", "test-ref-deep/nested")
 		assertOutputContains(t, stderr, "conflict")
 
 		// Try to create root branch - should fail
-		_, stderr = runBtExpectError(t, projectDir, "add", "-b", "a")
+		_, stderr = runBtExpectError(t, projectDir, "add", "-b", "test-ref-deep")
 		assertOutputContains(t, stderr, "conflict")
 	})
 }

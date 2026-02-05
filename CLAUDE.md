@@ -48,6 +48,8 @@ go test -v ./...               # All tests
 go vet ./...
 ```
 
+**Note**: The `-buildvcs=false` flag is required when building in a worktree environment. Without this flag, `go build` may fail with "error obtaining VCS status: exit status 128" because the worktree's `.git` file points to the bare repository, which can confuse Go's VCS detection. Always use this flag when building manually, or use `task build` which handles this automatically.
+
 ## Architecture
 
 ### Key Packages

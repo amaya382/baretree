@@ -50,6 +50,13 @@ type CommandResult struct {
 	Error   string
 }
 
+// FileActionResult represents the result of applying a file action
+type FileActionResult struct {
+	Source  string
+	Type    string
+	Applied bool // true if applied, false if skipped (already exists or source missing)
+}
+
 // GetPostCreateSourcePath returns the source path for a post-create file action
 func (m *Manager) GetPostCreateSourcePath(action config.PostCreateAction) (string, error) {
 	if action.Type == "command" {
@@ -105,7 +112,7 @@ func (m *Manager) CheckPostCreateConflicts(source string, managed bool) ([]PostC
 				// It's a symlink, check if it points to our expected source
 				linkTarget, err := os.Readlink(targetPath)
 				if err == nil {
-					expectedSource, _ := m.getExpectedSymlinkTarget(source, managed)
+					expectedSource, _ := m.getExpectedSymlinkTarget(source, managed, wt.Path)
 					if linkTarget == expectedSource {
 						// Already correctly linked, not a conflict
 						continue
@@ -125,15 +132,29 @@ func (m *Manager) CheckPostCreateConflicts(source string, managed bool) ([]PostC
 }
 
 // getExpectedSymlinkTarget returns the expected symlink target for a post-create file
-func (m *Manager) getExpectedSymlinkTarget(source string, managed bool) (string, error) {
+// The target is a relative path from the symlink location to the source file
+func (m *Manager) getExpectedSymlinkTarget(source string, managed bool, worktreePath string) (string, error) {
+	var sourcePath string
 	if managed {
-		return filepath.Abs(filepath.Join(m.RepoRoot, SharedDir, source))
+		sourcePath = filepath.Join(m.RepoRoot, SharedDir, source)
+	} else {
+		mainWorktree, err := m.getMainWorktreePath()
+		if err != nil {
+			return "", err
+		}
+		sourcePath = filepath.Join(mainWorktree, source)
 	}
-	mainWorktree, err := m.getMainWorktreePath()
+
+	// Calculate the target path (where the symlink will be created)
+	targetPath := filepath.Join(worktreePath, source)
+	targetDir := filepath.Dir(targetPath)
+
+	// Calculate relative path from target directory to source
+	relPath, err := filepath.Rel(targetDir, sourcePath)
 	if err != nil {
 		return "", err
 	}
-	return filepath.Abs(filepath.Join(mainWorktree, source))
+	return relPath, nil
 }
 
 // AddPostCreate adds a new post-create action configuration and applies it
@@ -247,11 +268,6 @@ func (m *Manager) applyPostCreateToAllWorktrees(action config.PostCreateAction) 
 		return nil, err
 	}
 
-	absSource, err := filepath.Abs(sourcePath)
-	if err != nil {
-		return nil, err
-	}
-
 	result := &PostCreateApplyResult{
 		Source:       action.Source,
 		Type:         action.Type,
@@ -285,7 +301,12 @@ func (m *Manager) applyPostCreateToAllWorktrees(action config.PostCreateAction) 
 
 		switch action.Type {
 		case "symlink":
-			if err := os.Symlink(absSource, targetPath); err != nil {
+			// Calculate relative path from target to source
+			relSource, err := m.getExpectedSymlinkTarget(action.Source, action.Managed, wt.Path)
+			if err != nil {
+				return nil, fmt.Errorf("failed to calculate relative path for %s: %w", targetPath, err)
+			}
+			if err := os.Symlink(relSource, targetPath); err != nil {
 				return nil, fmt.Errorf("failed to create symlink %s: %w", targetPath, err)
 			}
 		case "copy":
@@ -516,7 +537,6 @@ func (m *Manager) GetPostCreateStatus() ([]PostCreateStatusInfo, error) {
 			return nil, err
 		}
 
-		absSource, _ := filepath.Abs(sourcePath)
 		info.SourceExists = fileExists(sourcePath)
 
 		for _, wt := range worktrees {
@@ -550,7 +570,8 @@ func (m *Manager) GetPostCreateStatus() ([]PostCreateStatusInfo, error) {
 
 				if status.IsSymlink {
 					linkTarget, err := os.Readlink(targetPath)
-					if err == nil && linkTarget == absSource {
+					expectedRelSource, _ := m.getExpectedSymlinkTarget(action.Source, action.Managed, wt.Path)
+					if err == nil && linkTarget == expectedRelSource {
 						status.IsCorrect = true
 						info.Applied = append(info.Applied, wtName)
 					} else {
@@ -598,8 +619,11 @@ func (e *PostCreateConflictError) Error() string {
 }
 
 // ExecutePostCreateCommands executes all command-type post-create actions in a worktree
-func (m *Manager) ExecutePostCreateCommands(worktreePath string) []CommandResult {
+// Output is written to the provided writer in real-time. If writer is nil, output is discarded.
+// Returns the results for each command.
+func (m *Manager) ExecutePostCreateCommands(worktreePath string, writer io.Writer) []CommandResult {
 	var results []CommandResult
+	headerPrinted := false
 
 	for _, action := range m.Config.PostCreate {
 		if action.Type != "command" {
@@ -610,17 +634,38 @@ func (m *Manager) ExecutePostCreateCommands(worktreePath string) []CommandResult
 			Command: action.Source,
 		}
 
+		// Print section header before the first command
+		if writer != nil && !headerPrinted {
+			fmt.Fprintln(writer, "\nPost-create commands:")
+			headerPrinted = true
+		}
+
+		// Print command before execution
+		if writer != nil {
+			fmt.Fprintf(writer, "  $ %s\n", action.Source)
+		}
+
 		cmd := exec.Command("sh", "-c", action.Source)
 		cmd.Dir = worktreePath
 
-		output, err := cmd.CombinedOutput()
+		// Connect stdout and stderr to writer for real-time output
+		if writer != nil {
+			cmd.Stdout = &prefixWriter{writer: writer, prefix: "  > ", atNewLine: true}
+			cmd.Stderr = &prefixWriter{writer: writer, prefix: "  > ", atNewLine: true}
+		}
+
+		err := cmd.Run()
 		if err != nil {
 			result.Success = false
 			result.Error = err.Error()
-			result.Output = string(output)
+			if writer != nil {
+				fmt.Fprintf(writer, "  ✗ %s\n", err.Error())
+			}
 		} else {
 			result.Success = true
-			result.Output = string(output)
+			if writer != nil {
+				fmt.Fprintln(writer, "  ✓")
+			}
 		}
 
 		results = append(results, result)
@@ -629,13 +674,59 @@ func (m *Manager) ExecutePostCreateCommands(worktreePath string) []CommandResult
 	return results
 }
 
+// prefixWriter wraps an io.Writer and adds a prefix to each line
+type prefixWriter struct {
+	writer    io.Writer
+	prefix    string
+	atNewLine bool
+}
+
+func (pw *prefixWriter) Write(p []byte) (n int, err error) {
+	n = len(p)
+	for _, b := range p {
+		if pw.atNewLine || !pw.atNewLine && pw.prefix != "" {
+			// Write prefix at start of line
+			if pw.atNewLine {
+				_, err = pw.writer.Write([]byte(pw.prefix))
+				if err != nil {
+					return
+				}
+			}
+			pw.atNewLine = false
+		}
+		_, err = pw.writer.Write([]byte{b})
+		if err != nil {
+			return
+		}
+		if b == '\n' {
+			pw.atNewLine = true
+		}
+	}
+	return n, nil
+}
+
+// PostCreateResult contains the results of applying post-create configuration
+type PostCreateResult struct {
+	FileActions    []FileActionResult
+	CommandResults []CommandResult
+}
+
 // ApplyPostCreateConfig applies post-create file/directory configuration to a worktree
-// and executes any configured commands
-func (m *Manager) ApplyPostCreateConfig(worktreePath string) ([]CommandResult, error) {
+// and executes any configured commands. Output is written to the provided writer in real-time.
+// If writer is nil, output is discarded.
+func (m *Manager) ApplyPostCreateConfig(worktreePath string, writer io.Writer) (*PostCreateResult, error) {
+	result := &PostCreateResult{}
+	fileHeaderPrinted := false
+
 	// Apply file-based actions first
 	for _, action := range m.Config.PostCreate {
 		if action.Type == "command" {
 			continue
+		}
+
+		fileResult := FileActionResult{
+			Source: action.Source,
+			Type:   action.Type,
 		}
 
 		sourcePath, err := m.GetPostCreateSourcePath(action)
@@ -648,6 +739,7 @@ func (m *Manager) ApplyPostCreateConfig(worktreePath string) ([]CommandResult, e
 		// Check if source exists
 		if _, err := os.Stat(sourcePath); os.IsNotExist(err) {
 			// Source doesn't exist yet, skip (not an error)
+			result.FileActions = append(result.FileActions, fileResult)
 			continue
 		}
 
@@ -659,35 +751,52 @@ func (m *Manager) ApplyPostCreateConfig(worktreePath string) ([]CommandResult, e
 		// Check if target already exists
 		if _, err := os.Lstat(targetPath); err == nil {
 			// Target exists, skip to avoid overwriting
+			result.FileActions = append(result.FileActions, fileResult)
 			continue
+		}
+
+		// Print section header before the first file action
+		if writer != nil && !fileHeaderPrinted {
+			fmt.Fprintln(writer, "\nPost-create files:")
+			fileHeaderPrinted = true
 		}
 
 		switch action.Type {
 		case "symlink":
-			// Create symlink with absolute path
-			absSource, err := filepath.Abs(sourcePath)
+			// Create symlink with relative path
+			relSource, err := m.getExpectedSymlinkTarget(action.Source, action.Managed, worktreePath)
 			if err != nil {
-				return nil, fmt.Errorf("failed to get absolute path for %s: %w", sourcePath, err)
+				return nil, fmt.Errorf("failed to calculate relative path for %s: %w", sourcePath, err)
 			}
 
-			if err := os.Symlink(absSource, targetPath); err != nil {
-				return nil, fmt.Errorf("failed to create symlink %s -> %s: %w", targetPath, absSource, err)
+			if err := os.Symlink(relSource, targetPath); err != nil {
+				return nil, fmt.Errorf("failed to create symlink %s -> %s: %w", targetPath, relSource, err)
+			}
+			fileResult.Applied = true
+			if writer != nil {
+				fmt.Fprintf(writer, "  %s (%s)\n", action.Source, action.Type)
 			}
 
 		case "copy":
 			if err := copyFile(sourcePath, targetPath); err != nil {
 				return nil, fmt.Errorf("failed to copy %s to %s: %w", sourcePath, targetPath, err)
 			}
+			fileResult.Applied = true
+			if writer != nil {
+				fmt.Fprintf(writer, "  %s (%s)\n", action.Source, action.Type)
+			}
 
 		default:
 			return nil, fmt.Errorf("unknown post-create type: %s", action.Type)
 		}
+
+		result.FileActions = append(result.FileActions, fileResult)
 	}
 
 	// Execute commands after file operations
-	commandResults := m.ExecutePostCreateCommands(worktreePath)
+	result.CommandResults = m.ExecutePostCreateCommands(worktreePath, writer)
 
-	return commandResults, nil
+	return result, nil
 }
 
 // getMainWorktreePath returns the path to the main worktree (default branch worktree)

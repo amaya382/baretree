@@ -315,8 +315,8 @@ func (t *repairTarget) repairExternal(repoRoot, bareDir string, executor *git.Ex
 		return fmt.Errorf("failed to repair worktree: %w", err)
 	}
 
-	// Apply post-create file configuration
-	if _, err := wtMgr.ApplyPostCreateConfig(targetPath); err != nil {
+	// Apply post-create file configuration (pass nil to discard command output in repair context)
+	if _, err := wtMgr.ApplyPostCreateConfig(targetPath, nil); err != nil {
 		fmt.Printf("  Warning: failed to apply post-create config: %v\n", err)
 	}
 
@@ -635,8 +635,8 @@ func runFixPaths(repoRoot, bareDir string, executor *git.Executor, wtMgr *worktr
 					continue
 				}
 
-				// Apply post-create file configuration
-				if _, err := wtMgr.ApplyPostCreateConfig(targetPath); err != nil {
+				// Apply post-create file configuration (pass nil to discard command output in repair context)
+				if _, err := wtMgr.ApplyPostCreateConfig(targetPath, nil); err != nil {
 					fmt.Printf("  Warning: failed to apply post-create config: %v\n", err)
 				}
 

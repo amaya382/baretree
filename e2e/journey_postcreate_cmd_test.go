@@ -42,6 +42,7 @@ func TestPostCreateAdd(t *testing.T) {
 		envPath := filepath.Join(featureDir, ".env")
 		assertFileExists(t, envPath)
 		assertIsSymlink(t, envPath)
+		assertSymlinkIsRelative(t, envPath)
 
 		// Check content is accessible
 		content, err := os.ReadFile(envPath)
@@ -78,8 +79,10 @@ func TestPostCreateAddManaged(t *testing.T) {
 		// File should be moved to .shared
 		assertFileExists(t, filepath.Join(projectDir, ".shared", ".env"))
 
-		// Main worktree should have symlink
-		assertIsSymlink(t, filepath.Join(defaultDir, ".env"))
+		// Main worktree should have symlink with relative path
+		mainEnvPath := filepath.Join(defaultDir, ".env")
+		assertIsSymlink(t, mainEnvPath)
+		assertSymlinkIsRelative(t, mainEnvPath)
 	})
 
 	t.Run("managed file symlinked in new worktree", func(t *testing.T) {
@@ -89,6 +92,7 @@ func TestPostCreateAddManaged(t *testing.T) {
 		envPath := filepath.Join(featureDir, ".env")
 		assertFileExists(t, envPath)
 		assertIsSymlink(t, envPath)
+		assertSymlinkIsRelative(t, envPath)
 	})
 }
 
@@ -330,13 +334,18 @@ func TestPostCreateCommandExecution(t *testing.T) {
 	runBtSuccess(t, projectDir, "post-create", "add", "command", "touch .command-executed")
 
 	t.Run("command is executed when creating worktree", func(t *testing.T) {
-		runBtSuccess(t, projectDir, "add", "-b", "feature/exec")
+		stdout := runBtSuccess(t, projectDir, "add", "-b", "feature/exec")
 
 		featureDir := filepath.Join(projectDir, "feature", "exec")
 		markerPath := filepath.Join(featureDir, ".command-executed")
 
 		// Marker file should exist (command was executed)
 		assertFileExists(t, markerPath)
+
+		// Output should show the section header, command being executed, and success indicator
+		assertOutputContains(t, stdout, "Post-create commands:")
+		assertOutputContains(t, stdout, "$ touch .command-executed")
+		assertOutputContains(t, stdout, "✓")
 	})
 }
 
@@ -357,7 +366,7 @@ func TestPostCreateCommandFailure(t *testing.T) {
 
 	t.Run("worktree is still created even when command fails", func(t *testing.T) {
 		// bt add should succeed (command failure is a warning, not error)
-		runBtSuccess(t, projectDir, "add", "-b", "feature/fail")
+		stdout := runBtSuccess(t, projectDir, "add", "-b", "feature/fail")
 
 		featureDir := filepath.Join(projectDir, "feature", "fail")
 
@@ -365,6 +374,12 @@ func TestPostCreateCommandFailure(t *testing.T) {
 		if !isDirectory(featureDir) {
 			t.Errorf("expected worktree to exist at %s", featureDir)
 		}
+
+		// Output should show the section header, command being executed, and failure indicator
+		assertOutputContains(t, stdout, "Post-create commands:")
+		assertOutputContains(t, stdout, "$ false")
+		assertOutputContains(t, stdout, "✗")
+		assertOutputContains(t, stdout, "Warning: Some post-create commands failed")
 	})
 }
 

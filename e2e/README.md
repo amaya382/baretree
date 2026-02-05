@@ -173,8 +173,8 @@ Post-create command tests.
 
 | Test Case | Test Purpose |
 |-----------|--------------|
-| `TestPostCreateAdd` | Symlink configuration with `bt post-create add symlink` |
-| `TestPostCreateAddManaged` | Managed mode with .shared directory |
+| `TestPostCreateAdd` | Symlink configuration with `bt post-create add symlink` (verifies relative symlinks) |
+| `TestPostCreateAddManaged` | Managed mode with .shared directory (verifies relative symlinks) |
 | `TestPostCreateAddConflict` | Conflict detection with existing files |
 | `TestPostCreateRemove` | Configuration removal with `bt post-create remove` |
 | `TestPostCreateList` | Configuration listing with `bt post-create list` |

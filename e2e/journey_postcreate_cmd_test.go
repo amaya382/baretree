@@ -42,6 +42,7 @@ func TestPostCreateAdd(t *testing.T) {
 		envPath := filepath.Join(featureDir, ".env")
 		assertFileExists(t, envPath)
 		assertIsSymlink(t, envPath)
+		assertSymlinkIsRelative(t, envPath)
 
 		// Check content is accessible
 		content, err := os.ReadFile(envPath)
@@ -78,8 +79,10 @@ func TestPostCreateAddManaged(t *testing.T) {
 		// File should be moved to .shared
 		assertFileExists(t, filepath.Join(projectDir, ".shared", ".env"))
 
-		// Main worktree should have symlink
-		assertIsSymlink(t, filepath.Join(defaultDir, ".env"))
+		// Main worktree should have symlink with relative path
+		mainEnvPath := filepath.Join(defaultDir, ".env")
+		assertIsSymlink(t, mainEnvPath)
+		assertSymlinkIsRelative(t, mainEnvPath)
 	})
 
 	t.Run("managed file symlinked in new worktree", func(t *testing.T) {
@@ -89,6 +92,7 @@ func TestPostCreateAddManaged(t *testing.T) {
 		envPath := filepath.Join(featureDir, ".env")
 		assertFileExists(t, envPath)
 		assertIsSymlink(t, envPath)
+		assertSymlinkIsRelative(t, envPath)
 	})
 }
 

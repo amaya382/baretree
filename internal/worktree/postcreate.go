@@ -105,7 +105,7 @@ func (m *Manager) CheckPostCreateConflicts(source string, managed bool) ([]PostC
 				// It's a symlink, check if it points to our expected source
 				linkTarget, err := os.Readlink(targetPath)
 				if err == nil {
-					expectedSource, _ := m.getExpectedSymlinkTarget(source, managed)
+					expectedSource, _ := m.getExpectedSymlinkTarget(source, managed, wt.Path)
 					if linkTarget == expectedSource {
 						// Already correctly linked, not a conflict
 						continue
@@ -125,15 +125,29 @@ func (m *Manager) CheckPostCreateConflicts(source string, managed bool) ([]PostC
 }
 
 // getExpectedSymlinkTarget returns the expected symlink target for a post-create file
-func (m *Manager) getExpectedSymlinkTarget(source string, managed bool) (string, error) {
+// The target is a relative path from the symlink location to the source file
+func (m *Manager) getExpectedSymlinkTarget(source string, managed bool, worktreePath string) (string, error) {
+	var sourcePath string
 	if managed {
-		return filepath.Abs(filepath.Join(m.RepoRoot, SharedDir, source))
+		sourcePath = filepath.Join(m.RepoRoot, SharedDir, source)
+	} else {
+		mainWorktree, err := m.getMainWorktreePath()
+		if err != nil {
+			return "", err
+		}
+		sourcePath = filepath.Join(mainWorktree, source)
 	}
-	mainWorktree, err := m.getMainWorktreePath()
+
+	// Calculate the target path (where the symlink will be created)
+	targetPath := filepath.Join(worktreePath, source)
+	targetDir := filepath.Dir(targetPath)
+
+	// Calculate relative path from target directory to source
+	relPath, err := filepath.Rel(targetDir, sourcePath)
 	if err != nil {
 		return "", err
 	}
-	return filepath.Abs(filepath.Join(mainWorktree, source))
+	return relPath, nil
 }
 
 // AddPostCreate adds a new post-create action configuration and applies it
@@ -247,11 +261,6 @@ func (m *Manager) applyPostCreateToAllWorktrees(action config.PostCreateAction) 
 		return nil, err
 	}
 
-	absSource, err := filepath.Abs(sourcePath)
-	if err != nil {
-		return nil, err
-	}
-
 	result := &PostCreateApplyResult{
 		Source:       action.Source,
 		Type:         action.Type,
@@ -285,7 +294,12 @@ func (m *Manager) applyPostCreateToAllWorktrees(action config.PostCreateAction) 
 
 		switch action.Type {
 		case "symlink":
-			if err := os.Symlink(absSource, targetPath); err != nil {
+			// Calculate relative path from target to source
+			relSource, err := m.getExpectedSymlinkTarget(action.Source, action.Managed, wt.Path)
+			if err != nil {
+				return nil, fmt.Errorf("failed to calculate relative path for %s: %w", targetPath, err)
+			}
+			if err := os.Symlink(relSource, targetPath); err != nil {
 				return nil, fmt.Errorf("failed to create symlink %s: %w", targetPath, err)
 			}
 		case "copy":
@@ -516,7 +530,6 @@ func (m *Manager) GetPostCreateStatus() ([]PostCreateStatusInfo, error) {
 			return nil, err
 		}
 
-		absSource, _ := filepath.Abs(sourcePath)
 		info.SourceExists = fileExists(sourcePath)
 
 		for _, wt := range worktrees {
@@ -550,7 +563,8 @@ func (m *Manager) GetPostCreateStatus() ([]PostCreateStatusInfo, error) {
 
 				if status.IsSymlink {
 					linkTarget, err := os.Readlink(targetPath)
-					if err == nil && linkTarget == absSource {
+					expectedRelSource, _ := m.getExpectedSymlinkTarget(action.Source, action.Managed, wt.Path)
+					if err == nil && linkTarget == expectedRelSource {
 						status.IsCorrect = true
 						info.Applied = append(info.Applied, wtName)
 					} else {
@@ -664,14 +678,14 @@ func (m *Manager) ApplyPostCreateConfig(worktreePath string) ([]CommandResult, e
 
 		switch action.Type {
 		case "symlink":
-			// Create symlink with absolute path
-			absSource, err := filepath.Abs(sourcePath)
+			// Create symlink with relative path
+			relSource, err := m.getExpectedSymlinkTarget(action.Source, action.Managed, worktreePath)
 			if err != nil {
-				return nil, fmt.Errorf("failed to get absolute path for %s: %w", sourcePath, err)
+				return nil, fmt.Errorf("failed to calculate relative path for %s: %w", sourcePath, err)
 			}
 
-			if err := os.Symlink(absSource, targetPath); err != nil {
-				return nil, fmt.Errorf("failed to create symlink %s -> %s: %w", targetPath, absSource, err)
+			if err := os.Symlink(relSource, targetPath); err != nil {
+				return nil, fmt.Errorf("failed to create symlink %s -> %s: %w", targetPath, relSource, err)
 			}
 
 		case "copy":

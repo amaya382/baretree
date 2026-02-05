@@ -195,3 +195,18 @@ func runBtExpectError(t *testing.T, workDir string, args ...string) (stdout, std
 	}
 	return stdout, stderr
 }
+
+// assertSymlinkIsRelative checks that a symlink target is a relative path
+func assertSymlinkIsRelative(t *testing.T, path string) {
+	t.Helper()
+
+	target, err := os.Readlink(path)
+	if err != nil {
+		t.Errorf("failed to read symlink %s: %v", path, err)
+		return
+	}
+
+	if filepath.IsAbs(target) {
+		t.Errorf("expected symlink %s to have relative target, but got absolute path: %s", path, target)
+	}
+}

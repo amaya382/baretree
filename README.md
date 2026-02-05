@@ -214,16 +214,16 @@ baretree's worktree-based structure is ideal for AI coding assistants like Claud
 
 ### Agent Rules Template
 
-An example rules file for AI agents is available at [`examples/rules/git_worktree_with_baretree.md`](examples/rules/git_worktree_with_baretree.md). This template helps AI agents understand the baretree structure and work effectively with worktrees.
+An example rules file for AI agents is available at [`examples/rules/`](examples/rules/). See [`examples/README.md`](examples/README.md) for details.
 
 Copy to your project's rules directory:
 
 ```bash
 # For Claude Code
-cp examples/rules/git_worktree_with_baretree.md .claude/rules/
+cp examples/rules/working-directory-on-git-worktree-with-baretree.md ~/.claude/rules/
 
 # For Cursor
-cp examples/rules/git_worktree_with_baretree.md .cursor/rules/
+cp examples/rules/working-directory-on-git-worktree-with-baretree.md .cursor/rules/
 ```
 
 ---

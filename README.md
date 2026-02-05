@@ -374,6 +374,7 @@ cp examples/rules/working-directory-on-git-worktree-with-baretree.md .cursor/rul
 | `bt config default-branch` | Get or set the default branch |
 | `bt config export` | Export repository config to TOML |
 | `bt config import` | Import repository config from TOML |
+| `bt repo config root` | Get or set the baretree root directory |
 | `bt repo config export` | Export global config to TOML |
 | `bt repo config import` | Import global config from TOML |
 
@@ -395,14 +396,18 @@ bt config default-branch --unset      # Remove setting (reverts to 'main')
 
 ### Baretree Root
 
-Set where repositories are stored (default: `~/baretree`):
+Get, set, or unset the root directory where repositories are stored (default: `~/baretree`):
 
 ```bash
-# Environment variable
-export BARETREE_ROOT=~/code
+bt repo config root                   # Show current root directory
+bt repo config root ~/code            # Set root to ~/code
+bt repo config root --unset           # Remove setting (reverts to ~/baretree)
+```
 
-# Or git config
-git config --global baretree.root ~/code
+You can also use environment variable (takes precedence over the command setting):
+
+```bash
+export BARETREE_ROOT=~/code
 ```
 
 > [!TIP]

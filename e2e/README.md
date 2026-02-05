@@ -203,6 +203,20 @@ Config default-branch command tests.
 | `TestConfigDefaultBranch_UnsetWithArg` | Error when using --unset with branch argument |
 | `TestConfigDefaultBranch_Help` | Help output |
 
+### repo_config_root_test.go
+
+Repo config root command tests.
+
+| Test Case | Test Purpose |
+|-----------|--------------|
+| `TestRepoConfigRoot_Get` | Getting the current root directory |
+| `TestRepoConfigRoot_Set` | Setting the root directory |
+| `TestRepoConfigRoot_SetSamePath` | Setting the same path shows already set message |
+| `TestRepoConfigRoot_Unset` | Unsetting the root directory (reverts to ~/baretree) |
+| `TestRepoConfigRoot_UnsetWithArg` | Error when using --unset with path argument |
+| `TestRepoConfigRoot_EnvVarWarning` | Warning when BARETREE_ROOT environment variable is set |
+| `TestRepoConfigRoot_Help` | Help output |
+
 ### journey_synctoroot_test.go
 
 Sync-to-root functionality tests.

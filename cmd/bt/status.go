@@ -154,8 +154,8 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			fmt.Printf("  - Default branch worktree '%s' does not exist\n", mgr.Config.Repository.DefaultBranch)
 			fmt.Printf("    Expected path: %s\n", defaultBranchPath)
 			fmt.Println("    Fix with:")
-			fmt.Printf("      - Use 'main' as default: git config --file %s/config --unset baretree.defaultbranch\n", bareDir)
-			fmt.Printf("      - Or set your default branch: git config --file %s/config baretree.defaultbranch <branch>\n", bareDir)
+			fmt.Println("      - Use 'main' as default: bt config default-branch --unset")
+			fmt.Println("      - Or set your default branch: bt config default-branch <branch>")
 		}
 		for _, path := range unmanagedWorktrees {
 			fmt.Printf("  - Worktree at %s is outside managed directory\n", path)

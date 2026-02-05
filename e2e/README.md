@@ -188,6 +188,35 @@ Post-create command tests.
 | `TestPostCreateCommandWithChainedCommands` | Commands with `&&` and `;` operators are handled correctly |
 | `TestPostCreateCommandWithQuotes` | Commands containing double quotes are handled correctly |
 
+### config_default_branch_test.go
+
+Config default-branch command tests.
+
+| Test Case | Test Purpose |
+|-----------|--------------|
+| `TestConfigDefaultBranch_Get` | Getting the current default branch |
+| `TestConfigDefaultBranch_Set` | Setting the default branch |
+| `TestConfigDefaultBranch_SetMultipleTimes` | Setting the default branch multiple times |
+| `TestConfigDefaultBranch_FromWorktree` | Running command from within a worktree |
+| `TestConfigDefaultBranch_NotInBaretreeRepo` | Error handling outside baretree repository |
+| `TestConfigDefaultBranch_Unset` | Unsetting the default branch (reverts to 'main') |
+| `TestConfigDefaultBranch_UnsetWithArg` | Error when using --unset with branch argument |
+| `TestConfigDefaultBranch_Help` | Help output |
+
+### repo_config_root_test.go
+
+Repo config root command tests.
+
+| Test Case | Test Purpose |
+|-----------|--------------|
+| `TestRepoConfigRoot_Get` | Getting the current root directory |
+| `TestRepoConfigRoot_Set` | Setting the root directory |
+| `TestRepoConfigRoot_SetSamePath` | Setting the same path shows already set message |
+| `TestRepoConfigRoot_Unset` | Unsetting the root directory (reverts to ~/baretree) |
+| `TestRepoConfigRoot_UnsetWithArg` | Error when using --unset with path argument |
+| `TestRepoConfigRoot_EnvVarWarning` | Warning when BARETREE_ROOT environment variable is set |
+| `TestRepoConfigRoot_Help` | Help output |
+
 ### journey_synctoroot_test.go
 
 Sync-to-root functionality tests.
@@ -247,7 +276,7 @@ Shell completion tests using Cobra's `__complete` mechanism.
 | `TestCompletion_Flags/repair_command_completes_flags` | repair command completes --dry-run, --source, etc. |
 | `TestCompletion_Subcommands/root_command_completes_subcommands` | Root command completes add, cd, repo, etc. |
 | `TestCompletion_Subcommands/repo_command_completes_subcommands` | repo command completes init, clone, etc. |
-| `TestCompletion_Subcommands/config_command_completes_subcommands` | config command completes export, import |
+| `TestCompletion_Subcommands/config_command_completes_subcommands` | config command completes default-branch, export, import |
 | `TestCompletion_Subcommands/post-create_command_completes_subcommands` | post-create command completes add, remove, etc. |
 | `TestCompletion_Subcommands/sync-to-root_command_completes_subcommands` | sync-to-root command completes add, remove, etc. |
 | `TestCompletion_Subcommands/shell-init_completes_shell_names` | shell-init completes bash, zsh, fish |

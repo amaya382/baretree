@@ -80,6 +80,11 @@ func expandTilde(path string) string {
 	return path
 }
 
+// ExpandTilde expands ~ to the user's home directory (exported version)
+func ExpandTilde(path string) string {
+	return expandTilde(path)
+}
+
 // ExportConfig represents the exportable global configuration
 type ExportConfig struct {
 	Roots []string `toml:"roots"`
@@ -126,4 +131,69 @@ func SaveRootsToGitConfig(roots []string) error {
 	}
 
 	return nil
+}
+
+// SetRoot sets the primary root directory in git-config (global)
+func SetRoot(path string) error {
+	executor := git.NewExecutor("")
+
+	// Expand tilde to absolute path for storage
+	expandedPath := expandTilde(path)
+
+	// Set single root (replaces any existing)
+	if _, err := executor.Execute("config", "--global", "--replace-all", "baretree.root", expandedPath); err != nil {
+		return fmt.Errorf("failed to set root: %w", err)
+	}
+
+	return nil
+}
+
+// AddRoot appends a root directory to git-config (global)
+func AddRoot(path string) error {
+	executor := git.NewExecutor("")
+
+	// Expand tilde to absolute path for storage
+	expandedPath := expandTilde(path)
+
+	// Add root (appends to existing)
+	if _, err := executor.Execute("config", "--global", "--add", "baretree.root", expandedPath); err != nil {
+		return fmt.Errorf("failed to add root: %w", err)
+	}
+
+	return nil
+}
+
+// UnsetRoot removes the root directory setting from git-config (global)
+func UnsetRoot() error {
+	executor := git.NewExecutor("")
+
+	// Unset all root values
+	_, err := executor.Execute("config", "--global", "--unset-all", "baretree.root")
+	// Ignore error if key doesn't exist
+	if err != nil {
+		// Check if it's just "key not found" which is OK
+		output, _ := executor.Execute("config", "--global", "--get", "baretree.root")
+		if output == "" {
+			return nil // Already unset, that's fine
+		}
+		return fmt.Errorf("failed to unset root: %w", err)
+	}
+
+	return nil
+}
+
+// GetRootSource returns the source of the current root configuration
+// Returns "env" if from BARETREE_ROOT, "git-config" if from git config, "default" if using default
+func GetRootSource() string {
+	if os.Getenv("BARETREE_ROOT") != "" {
+		return "env"
+	}
+
+	executor := git.NewExecutor("")
+	roots, err := executor.Execute("config", "--get-all", "baretree.root")
+	if err == nil && roots != "" {
+		return "git-config"
+	}
+
+	return "default"
 }

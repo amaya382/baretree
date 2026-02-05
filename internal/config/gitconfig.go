@@ -281,6 +281,12 @@ func gitConfigAdd(bareDir, key, value string) error {
 	return cmd.Run()
 }
 
+// gitConfigUnset removes a single-valued key from git config
+func gitConfigUnset(bareDir, key string) error {
+	cmd := exec.Command("git", "config", "--file", filepath.Join(bareDir, "config"), "--unset", key)
+	return cmd.Run()
+}
+
 // gitConfigUnsetAll removes all values for a key
 func gitConfigUnsetAll(bareDir, key string) error {
 	cmd := exec.Command("git", "config", "--file", filepath.Join(bareDir, "config"), "--unset-all", key)
@@ -374,6 +380,20 @@ func InitializeBaretreeConfig(repoRoot, defaultBranch string) error {
 	// Set config values in git config
 	if err := gitConfigSet(barePath, GitConfigKeyDefaultBranch, defaultBranch); err != nil {
 		return fmt.Errorf("failed to set defaultbranch: %w", err)
+	}
+
+	return nil
+}
+
+// UnsetDefaultBranch removes the default branch configuration from the repository
+func UnsetDefaultBranch(repoRoot string) error {
+	bareDir := findBareDir(repoRoot)
+	if bareDir == "" {
+		return fmt.Errorf("bare repository not found in %s", repoRoot)
+	}
+
+	if err := gitConfigUnset(bareDir, GitConfigKeyDefaultBranch); err != nil {
+		return fmt.Errorf("failed to unset defaultbranch: %w", err)
 	}
 
 	return nil

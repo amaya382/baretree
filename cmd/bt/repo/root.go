@@ -13,16 +13,13 @@ var (
 
 var rootCmd = &cobra.Command{
 	Use:   "root",
-	Short: "Show the root directory path for repository management",
-	Long: `Show the root directory where baretree repositories are stored.
+	Short: "Show the root directory path for repository management (Default: ~/baretree)",
+	Long: `Show the root directory where baretree repositories are stored (Default: ~/baretree).
 
 By default, shows the primary root directory (the last one configured).
 Use --all to show all configured root directories.
 
-Configuration:
-  - Environment variable: BARETREE_ROOT
-  - Git config: baretree.root (can be set multiple times)
-  - Default: ~/baretree
+To change the root directory, use 'bt repo config root'.
 
 Examples:
   bt repo root

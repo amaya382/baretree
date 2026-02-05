@@ -7,13 +7,18 @@ import (
 // Cmd is the parent command for configuration management
 var Cmd = &cobra.Command{
 	Use:   "config",
-	Short: "Manage baretree configuration (export, import)",
+	Short: "Manage baretree configuration",
 	Long: `Manage baretree configuration including repository settings and post-create actions.
 
-Export and import operations allow you to backup, share, or transfer baretree configurations
-between repositories.
+Subcommands:
+  default-branch    Get or set the default branch
+  export            Export configuration to TOML format
+  import            Import configuration from TOML format
 
 Examples:
+  bt config default-branch               # Show current default branch
+  bt config default-branch main          # Set default branch to 'main'
+  bt config default-branch --unset       # Remove setting (reverts to 'main')
   bt config export                       # Output to stdout
   bt config export -o config.toml        # Write to file
   bt config import config.toml           # Import from file

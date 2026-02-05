@@ -371,6 +371,7 @@ cp examples/rules/working-directory-on-git-worktree-with-baretree.md .cursor/rul
 
 | Command | Description |
 |---------|-------------|
+| `bt config default-branch` | Get or set the default branch |
 | `bt config export` | Export repository config to TOML |
 | `bt config import` | Import repository config from TOML |
 | `bt repo config export` | Export global config to TOML |
@@ -381,6 +382,16 @@ cp examples/rules/working-directory-on-git-worktree-with-baretree.md .cursor/rul
 ## ⚙️ Configuration
 
 All configuration is stored in git-config (no extra config files needed).
+
+### Default Branch
+
+Get, set, or unset the default branch for a repository (used for post-create files and sync-to-root):
+
+```bash
+bt config default-branch              # Show current default branch
+bt config default-branch develop      # Set to 'develop'
+bt config default-branch --unset      # Remove setting (reverts to 'main')
+```
 
 ### Baretree Root
 

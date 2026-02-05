@@ -2,6 +2,7 @@ package worktree
 
 import (
 	"fmt"
+	"io"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -67,15 +68,17 @@ type AddOptions struct {
 }
 
 // Add creates a new worktree
-func (m *Manager) Add(branchName string, newBranch bool, baseBranch string) (string, error) {
+func (m *Manager) Add(branchName string, newBranch bool, baseBranch string, cmdOutput io.Writer) (string, *PostCreateResult, error) {
 	return m.AddWithOptions(branchName, AddOptions{
 		NewBranch:  newBranch,
 		BaseBranch: baseBranch,
-	})
+	}, cmdOutput)
 }
 
 // AddWithOptions creates a new worktree with extended options
-func (m *Manager) AddWithOptions(branchName string, opts AddOptions) (string, error) {
+// Returns the worktree path, post-create results, and any error
+// cmdOutput is the writer for post-create command output (pass nil to discard)
+func (m *Manager) AddWithOptions(branchName string, opts AddOptions, cmdOutput io.Writer) (string, *PostCreateResult, error) {
 	// Construct worktree path from branch name
 	// feature/auth -> {repoRoot}/feature/auth
 	worktreePath := filepath.Join(m.RepoRoot, branchName)
@@ -86,7 +89,7 @@ func (m *Manager) AddWithOptions(branchName string, opts AddOptions) (string, er
 		if err == nil {
 			for _, wt := range worktrees {
 				if wt.Branch == branchName {
-					return "", &ErrWorktreeAlreadyExists{
+					return "", nil, &ErrWorktreeAlreadyExists{
 						BranchName:   branchName,
 						WorktreePath: wt.Path,
 					}
@@ -119,17 +122,23 @@ func (m *Manager) AddWithOptions(branchName string, opts AddOptions) (string, er
 	if _, err := m.Executor.Execute(args...); err != nil {
 		// Check for ref conflict error
 		if refErr := parseRefConflictError(err, branchName); refErr != nil {
-			return "", refErr
+			return "", nil, refErr
 		}
-		return "", fmt.Errorf("failed to add worktree: %w", err)
+		return "", nil, fmt.Errorf("failed to add worktree: %w", err)
+	}
+
+	// Print "Worktree created" before post-create configuration
+	if cmdOutput != nil {
+		fmt.Fprintf(cmdOutput, "Worktree created at %s\n", worktreePath)
 	}
 
 	// Apply post-create configuration (files and commands)
-	if _, err := m.ApplyPostCreateConfig(worktreePath); err != nil {
-		return "", fmt.Errorf("failed to apply post-create config: %w", err)
+	postCreateResult, err := m.ApplyPostCreateConfig(worktreePath, cmdOutput)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to apply post-create config: %w", err)
 	}
 
-	return worktreePath, nil
+	return worktreePath, postCreateResult, nil
 }
 
 // Remove removes a worktree

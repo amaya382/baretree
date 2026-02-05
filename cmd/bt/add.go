@@ -126,8 +126,8 @@ func runAdd(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Creating worktree for branch '%s'...\n", branchName)
 
-	// Add worktree
-	worktreePath, err := wtMgr.AddWithOptions(branchName, opts)
+	// Add worktree (pass os.Stdout for real-time output including "Worktree created" message)
+	_, postCreateResult, err := wtMgr.AddWithOptions(branchName, opts, os.Stdout)
 	if err != nil {
 		var existsErr *worktree.ErrWorktreeAlreadyExists
 		if errors.As(err, &existsErr) {
@@ -144,36 +144,19 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to add worktree: %w", err)
 	}
 
-	fmt.Printf("Worktree created at %s\n", worktreePath)
-
-	// Show post-create actions applied
-	if len(mgr.Config.PostCreate) > 0 {
-		hasFileActions := false
-		hasCommandActions := false
-		for _, action := range mgr.Config.PostCreate {
-			if action.Type == "command" {
-				hasCommandActions = true
-			} else {
-				hasFileActions = true
+	// "Worktree created" message and post-create output are already printed by AddWithOptions
+	// Just check if any commands failed and show warning
+	if postCreateResult != nil && len(postCreateResult.CommandResults) > 0 {
+		hasErrors := false
+		for _, result := range postCreateResult.CommandResults {
+			if !result.Success {
+				hasErrors = true
+				break
 			}
 		}
 
-		if hasFileActions {
-			fmt.Println("\nPost-create files applied:")
-			for _, action := range mgr.Config.PostCreate {
-				if action.Type != "command" {
-					fmt.Printf("  - %s (%s)\n", action.Source, action.Type)
-				}
-			}
-		}
-
-		if hasCommandActions {
-			fmt.Println("\nPost-create commands executed:")
-			for _, action := range mgr.Config.PostCreate {
-				if action.Type == "command" {
-					fmt.Printf("  - %s\n", action.Source)
-				}
-			}
+		if hasErrors {
+			fmt.Println("\nWarning: Some post-create commands failed")
 		}
 	}
 

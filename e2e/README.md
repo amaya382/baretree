@@ -188,6 +188,25 @@ Post-create command tests.
 | `TestPostCreateCommandWithChainedCommands` | Commands with `&&` and `;` operators are handled correctly |
 | `TestPostCreateCommandWithQuotes` | Commands containing double quotes are handled correctly |
 
+### journey_synctoroot_test.go
+
+Sync-to-root functionality tests.
+
+| Test Case | Test Purpose |
+|-----------|--------------|
+| `TestJourneySyncToRoot/setup test files` | Setup test files in main worktree |
+| `TestJourneySyncToRoot/add file sync-to-root` | Adding sync-to-root for a file (CLAUDE.md) |
+| `TestJourneySyncToRoot/add directory sync-to-root` | Adding sync-to-root for a directory (.claude) |
+| `TestJourneySyncToRoot/add sync-to-root with custom target` | Custom target path (docs/guide.md -> guide.md) |
+| `TestJourneySyncToRoot/list sync-to-root entries` | Listing all sync-to-root entries |
+| `TestJourneySyncToRoot/remove sync-to-root entry` | Removing sync-to-root entry |
+| `TestJourneySyncToRoot/apply recreates missing symlinks` | Apply command recreates missing symlinks |
+| `TestJourneySyncToRoot/status shows sync-to-root` | Status command shows sync-to-root entries |
+| `TestSyncToRootErrors/error on non-existent source` | Error when source does not exist |
+| `TestSyncToRootErrors/error on existing non-symlink target` | Error when target is a regular file |
+| `TestSyncToRootErrors/error on duplicate entry` | Error when adding duplicate entry |
+| `TestSyncToRootForce/force overwrites wrong symlink` | --force flag overwrites incorrect symlinks |
+
 ### journey_unbare_test.go
 
 Conversion from baretree to regular repository tests.
@@ -230,6 +249,7 @@ Shell completion tests using Cobra's `__complete` mechanism.
 | `TestCompletion_Subcommands/repo_command_completes_subcommands` | repo command completes init, clone, etc. |
 | `TestCompletion_Subcommands/config_command_completes_subcommands` | config command completes export, import |
 | `TestCompletion_Subcommands/post-create_command_completes_subcommands` | post-create command completes add, remove, etc. |
+| `TestCompletion_Subcommands/sync-to-root_command_completes_subcommands` | sync-to-root command completes add, remove, etc. |
 | `TestCompletion_Subcommands/shell-init_completes_shell_names` | shell-init completes bash, zsh, fish |
 | `TestCompletion_Repository/go_command_completes_repository_names_with_-` | go command completes repository names and - |
 | `TestCompletion_Repository/repo_cd_command_completes_repository_names` | repo cd command completes repository names |
@@ -241,6 +261,9 @@ Shell completion tests using Cobra's `__complete` mechanism.
 | `TestCompletion_RepositorySubstringMatch/repository_completion_includes_both_prefix_and_substring_matches` | Repository completion includes prefix and substring matches |
 | `TestCompletion_RepositorySubstringMatch/repository_completion_prioritizes_prefix_matches` | Repository prefix matches come before substring matches |
 | `TestCompletion_RepositorySubstringMatch/special_completion_'-'_excluded_when_filter_is_applied` | - excluded when filter is applied |
+| `TestCompletion_SyncToRoot/sync-to-root_add_completes_files_in_main_worktree` | sync-to-root add completes files in default worktree |
+| `TestCompletion_SyncToRoot/sync-to-root_add_filters_by_prefix` | sync-to-root add filters completions by prefix |
+| `TestCompletion_SyncToRoot/sync-to-root_remove_completes_configured_entries` | sync-to-root remove completes configured entries |
 
 ## Running Tests
 

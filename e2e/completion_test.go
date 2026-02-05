@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -192,6 +193,16 @@ func TestCompletion_Subcommands(t *testing.T) {
 		stdout := runBtSuccess(t, tempDir, "__complete", "post-create", "")
 
 		// Should contain post-create subcommands
+		assertOutputContains(t, stdout, "add")
+		assertOutputContains(t, stdout, "remove")
+		assertOutputContains(t, stdout, "apply")
+		assertOutputContains(t, stdout, "list")
+	})
+
+	t.Run("sync-to-root command completes subcommands", func(t *testing.T) {
+		stdout := runBtSuccess(t, tempDir, "__complete", "sync-to-root", "")
+
+		// Should contain sync-to-root subcommands
 		assertOutputContains(t, stdout, "add")
 		assertOutputContains(t, stdout, "remove")
 		assertOutputContains(t, stdout, "apply")
@@ -439,5 +450,66 @@ func TestCompletion_RepositorySubstringMatch(t *testing.T) {
 		if slices.Contains(lines, "-") {
 			t.Error("special completion '-' should not appear when filter 'bar' is applied")
 		}
+	})
+}
+
+// TestCompletion_SyncToRoot tests sync-to-root argument completion
+func TestCompletion_SyncToRoot(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	tempDir := createTempDir(t, "completion-synctoroot")
+
+	// Clone a repository
+	runBtSuccess(t, tempDir, "repo", "clone", TestRepo, "synctoroot-comp")
+	projectDir := filepath.Join(tempDir, "synctoroot-comp")
+
+	// Find main worktree
+	var mainWorktree string
+	if isDirectory(filepath.Join(projectDir, "main")) {
+		mainWorktree = filepath.Join(projectDir, "main")
+	} else {
+		mainWorktree = filepath.Join(projectDir, "master")
+	}
+
+	// Create test files for completion
+	if err := os.WriteFile(filepath.Join(mainWorktree, "CLAUDE.md"), []byte("test"), 0644); err != nil {
+		t.Fatalf("failed to create CLAUDE.md: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(mainWorktree, "CONFIG.md"), []byte("test"), 0644); err != nil {
+		t.Fatalf("failed to create CONFIG.md: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(mainWorktree, ".claude"), 0755); err != nil {
+		t.Fatalf("failed to create .claude directory: %v", err)
+	}
+
+	t.Run("sync-to-root add completes files in main worktree", func(t *testing.T) {
+		stdout := runBtSuccess(t, projectDir, "__complete", "sync-to-root", "add", "")
+
+		// Should contain files from main worktree
+		assertOutputContains(t, stdout, "CLAUDE.md")
+		assertOutputContains(t, stdout, "CONFIG.md")
+		assertOutputContains(t, stdout, ".claude/")
+	})
+
+	t.Run("sync-to-root add filters by prefix", func(t *testing.T) {
+		stdout := runBtSuccess(t, projectDir, "__complete", "sync-to-root", "add", "C")
+
+		// Should contain files starting with C
+		assertOutputContains(t, stdout, "CLAUDE.md")
+		assertOutputContains(t, stdout, "CONFIG.md")
+		// Should not contain .claude
+		assertOutputNotContains(t, stdout, ".claude")
+	})
+
+	// Add a sync-to-root entry for remove completion test
+	runBtSuccess(t, projectDir, "sync-to-root", "add", "CLAUDE.md")
+
+	t.Run("sync-to-root remove completes configured entries", func(t *testing.T) {
+		stdout := runBtSuccess(t, projectDir, "__complete", "sync-to-root", "remove", "")
+
+		// Should contain configured entries
+		assertOutputContains(t, stdout, "CLAUDE.md")
 	})
 }

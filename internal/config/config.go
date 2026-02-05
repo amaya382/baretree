@@ -49,6 +49,11 @@ func ImportConfigFromTOML(data string) (*Config, error) {
 		config.Repository.DefaultBranch = "main"
 	}
 
+	// Ensure slices are not nil
+	if config.SyncToRoot == nil {
+		config.SyncToRoot = []SyncToRootAction{}
+	}
+
 	return &config, nil
 }
 
@@ -78,6 +83,33 @@ func ImportPostCreateFromTOML(data string) ([]PostCreateAction, error) {
 		return nil, fmt.Errorf("failed to parse TOML: %w", err)
 	}
 	return cfg.PostCreate, nil
+}
+
+// ExportSyncToRootToTOML exports only the sync-to-root configuration to TOML format
+func ExportSyncToRootToTOML(actions []SyncToRootAction) (string, error) {
+	type syncToRootConfig struct {
+		SyncToRoot []SyncToRootAction `toml:"synctoroot"`
+	}
+	cfg := syncToRootConfig{SyncToRoot: actions}
+
+	var buf bytes.Buffer
+	encoder := toml.NewEncoder(&buf)
+	if err := encoder.Encode(cfg); err != nil {
+		return "", fmt.Errorf("failed to encode sync-to-root config: %w", err)
+	}
+	return buf.String(), nil
+}
+
+// ImportSyncToRootFromTOML imports sync-to-root configuration from TOML format
+func ImportSyncToRootFromTOML(data string) ([]SyncToRootAction, error) {
+	type syncToRootConfig struct {
+		SyncToRoot []SyncToRootAction `toml:"synctoroot"`
+	}
+	var cfg syncToRootConfig
+	if err := toml.Unmarshal([]byte(data), &cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse TOML: %w", err)
+	}
+	return cfg.SyncToRoot, nil
 }
 
 // SaveConfigToTOMLFile saves the configuration to a TOML file (for export)

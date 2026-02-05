@@ -222,6 +222,46 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		fmt.Println("  Use 'bt post-create add symlink <file>' to configure post-create actions.")
 	}
 
+	fmt.Println()
+
+	// Print sync-to-root configuration
+	if len(mgr.Config.SyncToRoot) > 0 {
+		fmt.Println("Sync-to-root entries:")
+
+		// Get sync-to-root status
+		statuses, err := wtMgr.GetSyncToRootStatus()
+		if err != nil {
+			// Fallback to simple listing
+			for _, action := range mgr.Config.SyncToRoot {
+				target := action.Target
+				if target == "" {
+					target = action.Source
+				}
+				fmt.Printf("  %s -> %s\n", target, action.Source)
+			}
+		} else {
+			for _, status := range statuses {
+				stateStr := "[OK]"
+				if !status.SourceExists {
+					stateStr = "[MISSING SOURCE]"
+				} else if !status.TargetExists {
+					stateStr = "[NOT APPLIED]"
+				} else if !status.IsCorrect {
+					stateStr = "[WRONG TARGET]"
+				}
+
+				if status.Source == status.Target {
+					fmt.Printf("  %-16s %s\n", stateStr, status.Source)
+				} else {
+					fmt.Printf("  %-16s %s -> %s\n", stateStr, status.Target, status.Source)
+				}
+			}
+		}
+	} else {
+		fmt.Println("No sync-to-root entries configured.")
+		fmt.Println("  Use 'bt sync-to-root add <file>' to sync files to repository root.")
+	}
+
 	return nil
 }
 

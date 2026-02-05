@@ -208,6 +208,44 @@ bt post-create remove "npm install"  # Remove command
 
 ---
 
+## 🔗 Sync to Root
+
+Make files from the default branch worktree accessible at the repository root via symlinks. This is useful for tools that need to find configuration files at the project root.
+
+```bash
+# Sync CLAUDE.md to repository root
+bt sync-to-root add CLAUDE.md
+
+# Sync a directory
+bt sync-to-root add .claude
+
+# Use a different target name
+bt sync-to-root add docs/guide.md guide.md
+
+# List configured entries
+bt sync-to-root list
+
+# Remove entry
+bt sync-to-root remove CLAUDE.md
+
+# Re-apply all symlinks
+bt sync-to-root apply
+```
+
+After configuration:
+```
+project/
+├── .git/
+├── main/
+│   ├── CLAUDE.md
+│   └── .claude/
+├── CLAUDE.md -> main/CLAUDE.md     # Accessible from root
+├── .claude -> main/.claude         # Accessible from root
+└── feature/auth/
+```
+
+---
+
 ## 🤖 AI Agent Integration
 
 baretree's worktree-based structure is ideal for AI coding assistants like Claude Code, Cursor, and GitHub Copilot Workspace. Each worktree provides an isolated workspace.
@@ -275,6 +313,15 @@ cp examples/rules/git_worktree_with_baretree.md .cursor/rules/
 | `bt post-create remove <source>` | Remove action |
 | `bt post-create list` | List configured actions |
 | `bt post-create apply` | Apply to existing worktrees |
+
+### Sync to Root
+
+| Command | Description |
+|---------|-------------|
+| `bt sync-to-root add <source> [target]` | Symlink file/dir from default worktree to repo root |
+| `bt sync-to-root remove <source>` | Remove entry and symlink |
+| `bt sync-to-root list` | List configured entries |
+| `bt sync-to-root apply` | Re-apply all symlinks |
 
 ### Configuration
 

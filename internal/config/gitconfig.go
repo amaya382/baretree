@@ -13,6 +13,7 @@ const (
 	GitConfigSection          = "baretree"
 	GitConfigKeyDefaultBranch = "baretree.defaultbranch"
 	GitConfigKeyPostCreate    = "baretree.postcreate"
+	GitConfigKeySyncToRoot    = "baretree.synctoroot"
 )
 
 // LoadConfigFromGit loads configuration from git-config in the bare repository
@@ -26,6 +27,7 @@ func LoadConfigFromGit(repoRoot string) (*Config, error) {
 	cfg := &Config{
 		Repository: Repository{},
 		PostCreate: []PostCreateAction{},
+		SyncToRoot: []SyncToRootAction{},
 	}
 
 	// Read config values
@@ -41,6 +43,16 @@ func LoadConfigFromGit(repoRoot string) (*Config, error) {
 		for _, entry := range postCreateEntries {
 			if action, err := parsePostCreateEntry(entry); err == nil {
 				cfg.PostCreate = append(cfg.PostCreate, action)
+			}
+		}
+	}
+
+	// Read sync-to-root entries
+	syncToRootEntries, err := gitConfigGetAll(bareDir, GitConfigKeySyncToRoot)
+	if err == nil {
+		for _, entry := range syncToRootEntries {
+			if action, err := parseSyncToRootEntry(entry); err == nil {
+				cfg.SyncToRoot = append(cfg.SyncToRoot, action)
 			}
 		}
 	}
@@ -63,6 +75,15 @@ func SaveConfigToGit(repoRoot string, cfg *Config) error {
 		entry := formatPostCreateEntry(action)
 		if err := gitConfigAdd(bareDir, GitConfigKeyPostCreate, entry); err != nil {
 			return fmt.Errorf("failed to add post-create entry: %w", err)
+		}
+	}
+
+	// Clear existing sync-to-root entries and add new ones
+	_ = gitConfigUnsetAll(bareDir, GitConfigKeySyncToRoot)
+	for _, action := range cfg.SyncToRoot {
+		entry := formatSyncToRootEntry(action)
+		if err := gitConfigAdd(bareDir, GitConfigKeySyncToRoot, entry); err != nil {
+			return fmt.Errorf("failed to add sync-to-root entry: %w", err)
 		}
 	}
 
@@ -314,6 +335,27 @@ func formatPostCreateEntry(action PostCreateAction) string {
 		return fmt.Sprintf("%s:%s:managed", action.Source, action.Type)
 	}
 	return fmt.Sprintf("%s:%s", action.Source, action.Type)
+}
+
+// parseSyncToRootEntry parses a sync-to-root entry from git config format
+// Format: "source" or "source:target"
+func parseSyncToRootEntry(entry string) (SyncToRootAction, error) {
+	parts := strings.SplitN(entry, ":", 2)
+	action := SyncToRootAction{
+		Source: parts[0],
+	}
+	if len(parts) >= 2 {
+		action.Target = parts[1]
+	}
+	return action, nil
+}
+
+// formatSyncToRootEntry formats a SyncToRootAction for git config storage
+func formatSyncToRootEntry(action SyncToRootAction) string {
+	if action.Target != "" && action.Target != action.Source {
+		return fmt.Sprintf("%s:%s", action.Source, action.Target)
+	}
+	return action.Source
 }
 
 // GetBareDir returns the bare directory path for a repository root

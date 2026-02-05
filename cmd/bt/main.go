@@ -8,6 +8,7 @@ import (
 	"github.com/amaya382/baretree/cmd/bt/config"
 	"github.com/amaya382/baretree/cmd/bt/postcreate"
 	"github.com/amaya382/baretree/cmd/bt/repo"
+	"github.com/amaya382/baretree/cmd/bt/synctoroot"
 	"github.com/spf13/cobra"
 )
 
@@ -106,6 +107,7 @@ Use "{{.CommandPath}} [command] --help" for more information about a command.{{e
 	repairCmd.GroupID = groupWorktree
 	showRootCmd.GroupID = groupWorktree
 	postcreate.Cmd.GroupID = groupWorktree
+	synctoroot.Cmd.GroupID = groupWorktree
 	unbareCmd.GroupID = groupWorktree
 	config.Cmd.GroupID = groupWorktree
 
@@ -144,6 +146,7 @@ Use "{{.CommandPath}} [command] --help" for more information about a command.{{e
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(repo.Cmd)
 	rootCmd.AddCommand(postcreate.Cmd)
+	rootCmd.AddCommand(synctoroot.Cmd)
 	rootCmd.AddCommand(renameCmd)
 	rootCmd.AddCommand(unbareCmd)
 	rootCmd.AddCommand(config.Cmd)

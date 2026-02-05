@@ -250,6 +250,48 @@ project/
 
 baretree's worktree-based structure is ideal for AI coding assistants like Claude Code, Cursor, and GitHub Copilot Workspace. Each worktree provides an isolated workspace.
 
+### Recommended Setup: Open Project Root as Workspace
+
+For the best experience with AI agents and editors, open the **project root** (not individual worktrees) as your workspace:
+
+```bash
+# Open the project root in your editor
+code ~/baretree/github.com/user/my-project  # VS Code
+cursor ~/baretree/github.com/user/my-project  # Cursor
+
+# Start Claude Code from the project root
+cd ~/baretree/github.com/user/my-project
+claude
+```
+
+Then use `sync-to-root` to make AI configuration files accessible from the root:
+
+```bash
+bt sync-to-root add CLAUDE.md
+bt sync-to-root add .claude
+bt sync-to-root add .cursorrules  # For Cursor
+```
+
+This setup provides:
+- **Unified view**: See all worktrees (main, feature/auth, etc.) in one workspace
+- **AI config at root**: `CLAUDE.md` and `.claude/` are recognized by AI agents
+- **Easy context switching**: Jump between worktrees without changing windows
+- **Consistent rules**: Agent rules apply across all worktrees
+
+Your project structure:
+```
+my-project/                      # <- Open this as workspace
+├── .git/
+├── CLAUDE.md -> main/CLAUDE.md  # AI agents see this
+├── .claude -> main/.claude      # AI agents see this
+├── main/
+│   ├── CLAUDE.md                # Actual file
+│   ├── .claude/
+│   └── src/
+└── feature/
+    └── auth/                    # Work on features here
+```
+
 ### Agent Rules Template
 
 An example rules file for AI agents is available at [`examples/rules/git_worktree_with_baretree.md`](examples/rules/git_worktree_with_baretree.md). This template helps AI agents understand the baretree structure and work effectively with worktrees.

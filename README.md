@@ -292,6 +292,8 @@ my-project/                      # <- Open this as workspace
     └── auth/                    # Work on features here
 ```
 
+![](./docs/img/vscode.png)
+
 ### Agent Rules Template
 
 An example rules file for AI agents is available at [`examples/rules/git_worktree_with_baretree.md`](examples/rules/git_worktree_with_baretree.md). This template helps AI agents understand the baretree structure and work effectively with worktrees.

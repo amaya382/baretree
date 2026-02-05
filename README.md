@@ -220,10 +220,10 @@ Copy to your project's rules directory:
 
 ```bash
 # For Claude Code
-cp examples/rules/workting-directory-on-git-worktree-with-baretree.md ~/.claude/rules/
+cp examples/rules/working-directory-on-git-worktree-with-baretree.md ~/.claude/rules/
 
 # For Cursor
-cp examples/rules/workting-directory-on-git-worktree-with-baretree.md .cursor/rules/
+cp examples/rules/working-directory-on-git-worktree-with-baretree.md .cursor/rules/
 ```
 
 ---

@@ -17,9 +17,9 @@ The `rules/` directory contains templates for configuring AI coding assistants t
 
 | File | Description |
 |------|-------------|
-| [`workting-directory-on-git-worktree-with-baretree.md`](rules/workting-directory-on-git-worktree-with-baretree.md) | Working directory management rule for AI agents in baretree repositories |
+| [`working-directory-on-git-worktree-with-baretree.md`](rules/working-directory-on-git-worktree-with-baretree.md) | Working directory management rule for AI agents in baretree repositories |
 
-### workting-directory-on-git-worktree-with-baretree.md
+### working-directory-on-git-worktree-with-baretree.md
 
 This rule teaches AI agents how to properly work with baretree's worktree-based structure. It covers:
 
@@ -38,7 +38,7 @@ This rule teaches AI agents how to properly work with baretree's worktree-based 
 Place in your global rules directory so it applies to all baretree repositories:
 
 ```bash
-cp examples/rules/workting-directory-on-git-worktree-with-baretree.md ~/.claude/rules/
+cp examples/rules/working-directory-on-git-worktree-with-baretree.md ~/.claude/rules/
 ```
 
 #### Claude Code (Per-project)
@@ -46,13 +46,13 @@ cp examples/rules/workting-directory-on-git-worktree-with-baretree.md ~/.claude/
 Place in the project's rules directory:
 
 ```bash
-cp examples/rules/workting-directory-on-git-worktree-with-baretree.md .claude/rules/
+cp examples/rules/working-directory-on-git-worktree-with-baretree.md .claude/rules/
 ```
 
 #### Cursor
 
 ```bash
-cp examples/rules/workting-directory-on-git-worktree-with-baretree.md .cursor/rules/
+cp examples/rules/working-directory-on-git-worktree-with-baretree.md .cursor/rules/
 ```
 
 #### Other AI Tools

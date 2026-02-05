@@ -1,4 +1,4 @@
-# Working Direcotry on Git Worktree with baretree
+# Working Directory on Git Worktree with baretree
 
 ## Applicability
 

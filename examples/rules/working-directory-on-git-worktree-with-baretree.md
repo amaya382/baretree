@@ -23,9 +23,9 @@ This project uses baretree for worktree management. Each feature should be devel
 project/                       # Repository root
 ├── .git/                      # Bare git repository
 ├── main/                      # Main branch worktree (treat as read-only)
-├── feature/
-│   ├── auth/                  # Worktree for feature/auth branch
-│   └── api/                   # Worktree for feature/api branch
+├── feat/
+│   ├── auth/                  # Worktree for feat/auth branch
+│   └── api/                   # Worktree for feat/api branch
 └── task/
     └── explore-1/             # Temporary worktree for exploration tasks
 ```
@@ -69,7 +69,7 @@ Use `AskUserQuestion` tool with:
 
 - Question: "Create new worktree for this feature?"
 - Options:
-  - "Yes - Create feature/<feature-name>"
+  - "Yes - Create feat/<feature-name>"
   - "No - Work in current worktree"
 
 If you determine a new worktree is NOT needed:
@@ -85,35 +85,32 @@ Use `AskUserQuestion` tool with:
 ### 3. Create Worktree
 
 ```bash
-bt add -b feature/<feature-name>
+bt add -b feat/<feature-name>
 ```
 
 ### 4. Inform User
 
 ```
 New worktree created at:
-/path/to/project/feature/<feature-name>/
+/path/to/project/feat/<feature-name>/
 
 To switch:
-bt cd feature/<feature-name>
+bt cd feat/<feature-name>
 ```
 
 ### 5. Work with cd && Commands
 
-Each Bash tool call runs in a separate shell session, so `cd` alone doesn't persist. **Always use this pattern** for working in a worktree:
+Each Bash tool call runs in a separate shell session, so `cd` alone doesn't persist. **Always use this pattern** for working in a target worktree:
 
 ```bash
-# Step 1: Set worktree path variable at the start
-WORKTREE_DIR=$(bt root)/feature/<feature-name>
-
-# Step 2: Use cd && pattern for all operations
-cd $WORKTREE_DIR && cat README.md
-cd $WORKTREE_DIR && mkdir -p src && touch src/index.ts
+# Use cd && pattern for all operations
+cd "<target-worktree>" && cat README.md
+cd "<target-worktree>" && mkdir -p src && touch src/index.ts
 ```
 
 ## Branch Naming Conventions
 
-- Features: `feature/<feature-name>`
+- Features: `feat/<feature-name>`
 - Bug fixes: `fix/<bug-name>`
 - Temporary exploration: `task/<task-id>`
 
@@ -153,12 +150,12 @@ After PR is merged:
 1. **Use `AskUserQuestion` tool to ask:**
    - Question: "Feature has been merged to main. Remove worktree and branch?"
    - Options:
-     - "Yes - Remove feature/<feature> worktree and branch"
+     - "Yes - Remove feat/<feature> worktree and branch"
      - "No - Keep the worktree"
 
 2. Execute:
    ```bash
-   bt rm feature/<feature> --with-branch
+   bt rm feat/<feature> --with-branch
    ```
 
 ### Temporary Task Worktree Cleanup
@@ -173,7 +170,7 @@ bt rm task/<task-id> --with-branch
 
 ```bash
 # Switch worktrees
-bt cd feature/auth   # Switch to feature/auth worktree
+bt cd feat/auth   # Switch to feat/auth worktree
 bt cd @              # Switch to default worktree
 bt cd -              # Return to previous worktree
 
@@ -189,8 +186,6 @@ bt root              # Show repository root path
 - [ ] Checked current worktree with `bt list`
 - [ ] Determined if this is a new feature implementation requiring new worktree
 - [ ] **Used `AskUserQuestion` tool to ask user permission** (NOT regular chat responses)
-- [ ] If creating new worktree: Created with `bt add -b feature/<name>`
-- [ ] If creating new worktree: Set `WORKTREE_DIR` variable using `$(bt root)/feature/<name>`
-- [ ] If creating new worktree: Using `cd $WORKTREE_DIR && command` pattern for all file operations
+- [ ] If creating new worktree: Created with `bt add -b feat/<name>`
+- [ ] If creating new worktree: Using `cd "<target-worktree>" && command` pattern for all file operations
 - [ ] If editing shared files: Used `AskUserQuestion` tool to warn about impact on all worktrees
-

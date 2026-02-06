@@ -212,14 +212,20 @@ bt post-create remove "npm install"  # Remove command
 
 Make files from the default branch worktree accessible at the repository root via symlinks. This is useful for tools that need to find configuration files at the project root.
 
-```bash
-# Sync CLAUDE.md to repository root
-bt sync-to-root add CLAUDE.md
+Common use cases:
+- **AI agent configuration**: `CLAUDE.md`, `.claude/`, `.cursorrules`, `.github/copilot-instructions.md`
+- **Editor settings**: `.vscode/`, `.idea/` (when opening project root as workspace)
+- **Other root-level configs**: Any file that tools expect at the repository root
 
-# Sync a directory
+```bash
+# Sync AI agent config
+bt sync-to-root add CLAUDE.md
 bt sync-to-root add .claude
 
-# Use a different target name
+# Sync editor settings
+bt sync-to-root add .vscode
+
+# Use a different target path
 bt sync-to-root add docs/guide.md guide.md
 
 # List configured entries
@@ -238,9 +244,11 @@ project/
 ├── .git/
 ├── main/
 │   ├── CLAUDE.md
-│   └── .claude/
+│   ├── .claude/
+│   └── .vscode/
 ├── CLAUDE.md -> main/CLAUDE.md     # Accessible from root
 ├── .claude -> main/.claude         # Accessible from root
+├── .vscode -> main/.vscode         # Accessible from root
 └── feature/auth/
 ```
 

@@ -24,7 +24,7 @@ The worktree name can be:
   - Branch name (e.g., feature/auth)
   - Directory name relative to repo root
   - @ for default worktree
-  - (empty) for current worktree root
+  - (empty) for current worktree root (or default worktree if at repo root)
   - - (dash) to go to previous worktree
 
 Setup:
@@ -35,7 +35,7 @@ Setup:
 Usage (after shell setup):
   bt cd feature/auth    # Change to feature/auth worktree
   bt cd @               # Change to default worktree
-  bt cd                 # Change to current worktree root
+  bt cd                 # Change to current worktree root (or default worktree at repo root)
   bt cd -               # Change to previous worktree
 
 Examples:

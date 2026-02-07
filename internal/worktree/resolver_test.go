@@ -35,6 +35,12 @@ func (m *mockResolver) resolve(name string, cwd string) (string, error) {
 				return wt.Path, nil
 			}
 		}
+		// Not in a worktree (e.g., at repo root) - fall back to default worktree
+		for _, wt := range m.worktrees {
+			if wt.IsMain {
+				return wt.Path, nil
+			}
+		}
 		return "", nil
 	}
 
@@ -98,6 +104,12 @@ func TestResolverLogic(t *testing.T) {
 			name:     "empty string with no cwd returns default",
 			input:    "",
 			cwd:      "",
+			expected: "/home/user/project/main",
+		},
+		{
+			name:     "empty string with cwd at repo root returns default worktree",
+			input:    "",
+			cwd:      "/home/user/project",
 			expected: "/home/user/project/main",
 		},
 		{

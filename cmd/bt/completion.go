@@ -65,7 +65,8 @@ func completeWorktreeNames(includeSpecial bool) func(cmd *cobra.Command, args []
 		// Add special completions (only when no filter or matches special chars)
 		if includeSpecial && (toComplete == "" || toComplete == "@" || toComplete == "-") {
 			if toComplete == "" {
-				completions = append(completions, "@", "-")
+				completions = append([]string{"@"}, completions...)
+				completions = append(completions, "-")
 			} else if toComplete == "@" {
 				completions = append(completions, "@")
 			} else if toComplete == "-" {

@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/amaya382/baretree/internal/global"
-	"github.com/amaya382/baretree/internal/repository"
 	"github.com/spf13/cobra"
 )
 
@@ -109,20 +108,8 @@ func runRepoCd(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(os.Stderr, "Warning: failed to save directory history: %v\n", err)
 	}
 
-	// Determine the target path (default worktree if available)
-	targetPath := match.Path
-
-	// Try to get the default worktree directory
-	mgr, err := repository.NewManager(match.Path)
-	if err == nil && mgr.Config.Repository.DefaultBranch != "" {
-		defaultWorktreePath := filepath.Join(match.Path, mgr.Config.Repository.DefaultBranch)
-		if _, err := os.Stat(defaultWorktreePath); err == nil {
-			targetPath = defaultWorktreePath
-		}
-	}
-
-	// Output the path (shell function will use this)
-	fmt.Println(targetPath)
+	// Output the repository root path (shell function will use this)
+	fmt.Println(match.Path)
 	return nil
 }
 

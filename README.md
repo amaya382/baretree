@@ -1,6 +1,3 @@
-> [!WARNING]
-> **This is an experimental project that is not yet thoroughly tested; use with caution as breaking changes are likely. Bug reports and contributions are welcome.**
-
 <h1 align="center">🪾 baretree</h1>
 
 <p align="center"><b>Git repositories, worktrees, and branches, organized.</b></p>

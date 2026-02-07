@@ -49,7 +49,13 @@ func (m *Manager) ResolveFromCwd(name string, cwd string) (string, error) {
 				return wt.Path, nil
 			}
 		}
-		return "", fmt.Errorf("not in a worktree")
+		// Not in a worktree (e.g., at repo root) - fall back to default worktree
+		for _, wt := range worktrees {
+			if wt.IsMain {
+				return wt.Path, nil
+			}
+		}
+		return "", fmt.Errorf("default worktree not found")
 	}
 
 	// Special case: @ means default worktree

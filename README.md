@@ -179,7 +179,7 @@ bt post-create add symlink .env
 bt post-create add symlink node_modules
 
 # Use copy instead of symlink for files that need independent copies
-bt post-create add copy .vscode/settings.json
+bt post-create add copy .env
 
 # Use --no-managed to source from default branch instead of .shared/
 bt post-create add symlink .env --no-managed
@@ -214,7 +214,8 @@ Make files from the default branch worktree accessible at the repository root vi
 
 Common use cases:
 - **AI agent configuration**: `CLAUDE.md`, `.claude/`, `.cursorrules`, `.github/copilot-instructions.md`
-- **Editor settings**: `.vscode/`, `.idea/` (when opening project root as workspace)
+- **Editor settings**: `.idea/`, `.vscode/` (when opening project root as workspace)
+  - Note: For VS Code, [Multi-Root Workspaces](https://code.visualstudio.com/docs/editor/multi-root-workspaces) is recommended over `sync-to-root`
 - **Other root-level configs**: Any file that tools expect at the repository root
 
 ```bash
@@ -223,7 +224,7 @@ bt sync-to-root add CLAUDE.md
 bt sync-to-root add .claude
 
 # Sync editor settings
-bt sync-to-root add .vscode
+bt sync-to-root add .idea
 
 # Use a different target path
 bt sync-to-root add docs/guide.md guide.md
@@ -242,13 +243,12 @@ After configuration:
 ```
 project/
 ├── .git/
+├── CLAUDE.md -> main/CLAUDE.md     # Accessible from root
+├── .claude -> main/.claude         # Accessible from root
 ├── main/
 │   ├── CLAUDE.md
 │   ├── .claude/
-│   └── .vscode/
-├── CLAUDE.md -> main/CLAUDE.md     # Accessible from root
-├── .claude -> main/.claude         # Accessible from root
-├── .vscode -> main/.vscode         # Accessible from root
+│   └── ...
 └── feature/auth/
 ```
 
@@ -301,6 +301,9 @@ my-project/                      # <- Open this as workspace
 ```
 
 ![](./docs/img/vscode.png)
+
+> [!TIP]
+> **Having trouble with VS Code debugger, source control, or `.vscode/` settings in worktrees?** VS Code's [Multi-Root Workspaces](https://code.visualstudio.com/docs/editor/multi-root-workspaces) lets you add each worktree as a separate workspace folder, so per-worktree settings like debug configurations work correctly.
 
 ### Agent Rules Template
 

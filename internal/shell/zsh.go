@@ -61,9 +61,10 @@ _bt_custom() {
     local cmd="${words[2]}"
     local subcmd="${words[3]}"
 
-    # Worktree completion (bt cd, bt remove, bt rename, bt repair, bt unbare)
+    # Worktree completion (bt cd, bt remove/rm, bt rename, bt repair, bt unbare)
     if [[ "$cmd" == "cd" ]] || \
        [[ "$cmd" == "remove" ]] || \
+       [[ "$cmd" == "rm" ]] || \
        [[ "$cmd" == "rename" ]] || \
        [[ "$cmd" == "repair" ]] || \
        [[ "$cmd" == "unbare" ]]; then

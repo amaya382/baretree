@@ -76,8 +76,8 @@ function __bt_custom_completion
         else if test "$cmd[2]" = "cd"
             command bt __complete cd "$cur" 2>/dev/null | head -n -1
             return 0
-        else if test "$cmd[2]" = "remove"
-            command bt __complete remove "$cur" 2>/dev/null | head -n -1
+        else if test "$cmd[2]" = "remove" -o "$cmd[2]" = "rm"
+            command bt __complete "$cmd[2]" "$cur" 2>/dev/null | head -n -1
             return 0
         else if test "$cmd[2]" = "rename"
             command bt __complete rename "$cur" 2>/dev/null | head -n -1
@@ -99,6 +99,7 @@ complete -c bt -n '__fish_seen_subcommand_from repos' -f -a '(__bt_custom_comple
 complete -c bt -n '__fish_seen_subcommand_from repo; and __fish_seen_subcommand_from cd' -f -a '(__bt_custom_completion)'
 complete -c bt -n '__fish_seen_subcommand_from cd' -f -a '(__bt_custom_completion)'
 complete -c bt -n '__fish_seen_subcommand_from remove' -f -a '(__bt_custom_completion)'
+complete -c bt -n '__fish_seen_subcommand_from rm' -f -a '(__bt_custom_completion)'
 complete -c bt -n '__fish_seen_subcommand_from rename' -f -a '(__bt_custom_completion)'
 complete -c bt -n '__fish_seen_subcommand_from repair' -f -a '(__bt_custom_completion)'
 complete -c bt -n '__fish_seen_subcommand_from unbare' -f -a '(__bt_custom_completion)'

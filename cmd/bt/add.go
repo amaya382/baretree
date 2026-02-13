@@ -92,10 +92,30 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Resolve base branch if specified
+	var resolvedBaseBranch string
+	var baseDisplayInfo string
+	if addBaseBranch != "" {
+		baseInfo, err := wtMgr.ResolveBranch(addBaseBranch)
+		if err != nil {
+			return fmt.Errorf("failed to resolve base branch '%s': %w", addBaseBranch, err)
+		}
+
+		if baseInfo.IsLocal {
+			resolvedBaseBranch = baseInfo.Name
+			baseDisplayInfo = baseInfo.Name
+		} else if baseInfo.IsRemote {
+			resolvedBaseBranch = baseInfo.RemoteRef
+			baseDisplayInfo = baseInfo.RemoteRef
+		} else {
+			return fmt.Errorf("base branch '%s' not found locally or on any remote", addBaseBranch)
+		}
+	}
+
 	// Build add options
 	opts := worktree.AddOptions{
 		NewBranch:  addNewBranch,
-		BaseBranch: addBaseBranch,
+		BaseBranch: resolvedBaseBranch,
 	}
 
 	var branchName string
@@ -121,6 +141,15 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		} else {
 			// Branch not found anywhere
 			return fmt.Errorf("branch '%s' not found locally or on any remote\nUse 'bt add -b %s' to create a new branch", branchSpec, branchSpec)
+		}
+	}
+
+	// Display base information
+	if addNewBranch {
+		if baseDisplayInfo != "" {
+			fmt.Printf("Based on '%s'\n", baseDisplayInfo)
+		} else {
+			fmt.Println("Based on HEAD")
 		}
 	}
 

@@ -78,9 +78,10 @@ _bt_custom_completion() {
         return 0
     fi
 
-    # Worktree completion (bt cd, bt remove, bt rename, bt repair, bt unbare)
+    # Worktree completion (bt cd, bt remove/rm, bt rename, bt repair, bt unbare)
     if [[ "$cmd" == "cd" && $COMP_CWORD -eq 2 ]] || \
        [[ "$cmd" == "remove" && $COMP_CWORD -eq 2 ]] || \
+       [[ "$cmd" == "rm" && $COMP_CWORD -eq 2 ]] || \
        [[ "$cmd" == "rename" && $COMP_CWORD -eq 2 ]] || \
        [[ "$cmd" == "repair" && $COMP_CWORD -eq 2 ]] || \
        [[ "$cmd" == "unbare" && $COMP_CWORD -eq 2 ]]; then

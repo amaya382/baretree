@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -240,6 +241,111 @@ func TestAddLocalBranchPriority(t *testing.T) {
 
 		// Should NOT say "Tracking remote branch" since local exists
 		assertOutputNotContains(t, stdout, "Tracking remote branch")
+		assertOutputContains(t, stdout, "Worktree created")
+	})
+}
+
+// TestAddNewBranchWithRemoteBase tests that --base with a remote-only branch
+// correctly resolves the branch and creates the intended new branch name
+func TestAddNewBranchWithRemoteBase(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	tempDir := createTempDir(t, "remote-base")
+	originPath := setupRemoteRepo(t, tempDir)
+
+	runBtSuccess(t, tempDir, "repo", "clone", originPath, "test-repo")
+	projectDir := filepath.Join(tempDir, "test-repo")
+
+	// Configure fetch refspec and fetch
+	bareDir := filepath.Join(projectDir, ".git")
+	cmd := exec.Command("git", "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
+	cmd.Dir = bareDir
+	_ = cmd.Run()
+	cmd = exec.Command("git", "fetch", "origin")
+	cmd.Dir = bareDir
+	_ = cmd.Run()
+
+	// Delete local feature/remote branch to ensure it's remote-only
+	cmd = exec.Command("git", "branch", "-D", "feature/remote")
+	cmd.Dir = bareDir
+	_ = cmd.Run()
+
+	t.Run("new branch based on remote-only branch", func(t *testing.T) {
+		stdout := runBtSuccess(t, projectDir, "add", "-b", "feat/new", "--base", "feature/remote")
+
+		// Should show the resolved remote ref as base
+		assertOutputContains(t, stdout, "Based on 'origin/feature/remote'")
+		assertOutputContains(t, stdout, "Worktree created")
+
+		// Verify worktree was created with correct branch name
+		assertFileExists(t, filepath.Join(projectDir, "feat", "new"))
+
+		// Verify the branch name is feat/new, not feature/remote (DWIM bug fix)
+		cmd := exec.Command("git", "branch", "--list", "feat/new")
+		cmd.Dir = bareDir
+		output, err := cmd.Output()
+		if err != nil || !strings.Contains(string(output), "feat/new") {
+			t.Errorf("expected branch 'feat/new' to exist, got: %s", string(output))
+		}
+	})
+}
+
+// TestAddNewBranchWithLocalBase tests --base with a local branch
+func TestAddNewBranchWithLocalBase(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	tempDir := createTempDir(t, "local-base")
+	originPath := setupRemoteRepo(t, tempDir)
+
+	runBtSuccess(t, tempDir, "repo", "clone", originPath, "test-repo")
+	projectDir := filepath.Join(tempDir, "test-repo")
+
+	t.Run("new branch based on local main", func(t *testing.T) {
+		stdout := runBtSuccess(t, projectDir, "add", "-b", "feat/from-main", "--base", "main")
+
+		assertOutputContains(t, stdout, "Based on 'main'")
+		assertOutputContains(t, stdout, "Worktree created")
+		assertFileExists(t, filepath.Join(projectDir, "feat", "from-main"))
+	})
+}
+
+// TestAddNewBranchWithNonexistentBase tests --base with a branch that doesn't exist
+func TestAddNewBranchWithNonexistentBase(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	tempDir := createTempDir(t, "nonexistent-base")
+
+	runBtSuccess(t, tempDir, "repo", "init", "test-repo")
+	projectDir := filepath.Join(tempDir, "test-repo")
+
+	t.Run("error when base branch does not exist", func(t *testing.T) {
+		_, stderr := runBtExpectError(t, projectDir, "add", "-b", "feat/new", "--base", "nonexistent")
+
+		assertOutputContains(t, stderr, "base branch 'nonexistent' not found")
+	})
+}
+
+// TestAddNewBranchShowsBaseInfo tests that creating a new branch shows base information
+func TestAddNewBranchShowsBaseInfo(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	tempDir := createTempDir(t, "base-info")
+
+	runBtSuccess(t, tempDir, "repo", "init", "test-repo")
+	projectDir := filepath.Join(tempDir, "test-repo")
+
+	t.Run("new branch without --base shows HEAD", func(t *testing.T) {
+		stdout := runBtSuccess(t, projectDir, "add", "-b", "feat/no-base")
+
+		assertOutputContains(t, stdout, "Based on HEAD")
 		assertOutputContains(t, stdout, "Worktree created")
 	})
 }

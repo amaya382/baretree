@@ -128,6 +128,10 @@ Remote branch operation tests.
 | `TestAddWithFetch` | Fetching latest branches with `--fetch` option |
 | `TestAddBranchNotFound` | Error message when adding non-existent branch |
 | `TestAddLocalBranchPriority` | Local branch priority over remote |
+| `TestAddNewBranchWithRemoteBase` | `--base` with remote-only branch resolves correctly (DWIM bug fix) |
+| `TestAddNewBranchWithLocalBase` | `--base` with local branch works correctly |
+| `TestAddNewBranchWithNonexistentBase` | Error when `--base` specifies non-existent branch |
+| `TestAddNewBranchShowsBaseInfo` | Display of base branch information (HEAD fallback) |
 
 ### journey_rename_test.go
 

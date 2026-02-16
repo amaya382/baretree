@@ -146,8 +146,8 @@ func TestAddRemoteBranchExplicit(t *testing.T) {
 	})
 }
 
-// TestAddWithFetch tests the --fetch option
-func TestAddWithFetch(t *testing.T) {
+// TestAddAutoFetch tests that auto-fetch is the default when remotes are configured
+func TestAddAutoFetch(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping e2e test in short mode")
 	}
@@ -181,13 +181,123 @@ func TestAddWithFetch(t *testing.T) {
 	cmd.Dir = workPath
 	_ = cmd.Run()
 
-	t.Run("add with --fetch gets new remote branches", func(t *testing.T) {
-		stdout := runBtSuccess(t, projectDir, "add", "--fetch", "feature/new-after-clone")
+	t.Run("auto-fetch gets new remote branches by default", func(t *testing.T) {
+		stdout := runBtSuccess(t, projectDir, "add", "feature/new-after-clone")
 
 		assertOutputContains(t, stdout, "Fetching from remotes")
 		assertOutputContains(t, stdout, "Tracking remote branch")
 		assertOutputContains(t, stdout, "Worktree created")
 		assertFileExists(t, filepath.Join(projectDir, "feature", "new-after-clone"))
+	})
+}
+
+// TestAddNoFetch tests the --no-fetch option skips auto-fetch
+func TestAddNoFetch(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	tempDir := createTempDir(t, "no-fetch")
+	originPath := setupRemoteRepo(t, tempDir)
+
+	runBtSuccess(t, tempDir, "repo", "clone", originPath, "test-repo")
+	projectDir := filepath.Join(tempDir, "test-repo")
+
+	// Configure fetch refspec
+	bareDir := filepath.Join(projectDir, ".git")
+	cmd := exec.Command("git", "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
+	cmd.Dir = bareDir
+	_ = cmd.Run()
+
+	// Create a new branch on origin after clone (not yet fetched)
+	workPath := filepath.Join(tempDir, "work")
+	cmd = exec.Command("git", "checkout", "-b", "feature/unfetched")
+	cmd.Dir = workPath
+	_ = cmd.Run()
+	newFilePath := filepath.Join(workPath, "unfetched.txt")
+	_ = os.WriteFile(newFilePath, []byte("unfetched"), 0644)
+	cmd = exec.Command("git", "add", ".")
+	cmd.Dir = workPath
+	_ = cmd.Run()
+	cmd = exec.Command("git", "commit", "-m", "unfetched feature")
+	cmd.Dir = workPath
+	_ = cmd.Run()
+	cmd = exec.Command("git", "push", "origin", "feature/unfetched")
+	cmd.Dir = workPath
+	_ = cmd.Run()
+
+	t.Run("no-fetch skips auto-fetch so branch is not found", func(t *testing.T) {
+		_, stderr := runBtExpectError(t, projectDir, "add", "--no-fetch", "feature/unfetched")
+
+		assertOutputNotContains(t, stderr, "Fetching from remotes")
+		assertOutputContains(t, stderr, "not found")
+	})
+}
+
+// TestAddUpstreamBehindWarning tests the upstream behind warning in non-TTY mode
+func TestAddUpstreamBehindWarning(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	tempDir := createTempDir(t, "upstream-behind")
+	originPath := setupRemoteRepo(t, tempDir)
+
+	runBtSuccess(t, tempDir, "repo", "clone", originPath, "test-repo")
+	projectDir := filepath.Join(tempDir, "test-repo")
+
+	bareDir := filepath.Join(projectDir, ".git")
+
+	// Configure fetch refspec and fetch
+	cmd := exec.Command("git", "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
+	cmd.Dir = bareDir
+	_ = cmd.Run()
+	cmd = exec.Command("git", "fetch", "origin")
+	cmd.Dir = bareDir
+	_ = cmd.Run()
+
+	// Set upstream for main branch
+	cmd = exec.Command("git", "config", "branch.main.remote", "origin")
+	cmd.Dir = bareDir
+	_ = cmd.Run()
+	cmd = exec.Command("git", "config", "branch.main.merge", "refs/heads/main")
+	cmd.Dir = bareDir
+	_ = cmd.Run()
+
+	// Push a new commit to origin after clone
+	workPath := filepath.Join(tempDir, "work")
+	cmd = exec.Command("git", "checkout", "main")
+	cmd.Dir = workPath
+	_ = cmd.Run()
+	newFilePath := filepath.Join(workPath, "extra.txt")
+	_ = os.WriteFile(newFilePath, []byte("extra"), 0644)
+	cmd = exec.Command("git", "add", ".")
+	cmd.Dir = workPath
+	_ = cmd.Run()
+	cmd = exec.Command("git", "commit", "-m", "extra commit")
+	cmd.Dir = workPath
+	_ = cmd.Run()
+	cmd = exec.Command("git", "push", "origin", "main")
+	cmd.Dir = workPath
+	_ = cmd.Run()
+
+	t.Run("aborts when default branch is behind upstream without force", func(t *testing.T) {
+		// auto-fetch will update remote refs, making local main behind origin/main
+		stdout, stderr := runBtExpectError(t, projectDir, "add", "-b", "feat/behind-test")
+
+		// Should show warning about being behind
+		combined := stdout + stderr
+		assertOutputContains(t, combined, "Warning: 'main' is")
+		assertOutputContains(t, combined, "behind its upstream")
+	})
+
+	t.Run("force skips behind check", func(t *testing.T) {
+		// --force should skip the behind check and create the worktree
+		stdout := runBtSuccess(t, projectDir, "add", "-b", "feat/behind-force", "--force")
+
+		// Should not show warning
+		assertOutputNotContains(t, stdout, "Warning:")
+		assertOutputContains(t, stdout, "Worktree created")
 	})
 }
 

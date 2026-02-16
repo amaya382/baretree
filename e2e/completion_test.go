@@ -114,7 +114,7 @@ func TestCompletion_Flags(t *testing.T) {
 		assertOutputContains(t, stdout, "--base")
 		assertOutputContains(t, stdout, "--detach")
 		assertOutputContains(t, stdout, "--force")
-		assertOutputContains(t, stdout, "--fetch")
+		assertOutputContains(t, stdout, "--no-fetch")
 	})
 
 	t.Run("remove command completes flags", func(t *testing.T) {

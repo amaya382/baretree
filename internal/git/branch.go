@@ -128,6 +128,16 @@ func (e *Executor) remoteBranchExists(remote, branch string) bool {
 	return err == nil
 }
 
+// ResolveHEAD returns the branch name that HEAD points to (e.g., "main").
+// Returns empty string if HEAD is detached or on error.
+func (e *Executor) ResolveHEAD() string {
+	output, err := e.Execute("symbolic-ref", "--short", "HEAD")
+	if err != nil {
+		return ""
+	}
+	return output
+}
+
 // HasRemotes returns true if any remotes are configured
 func (e *Executor) HasRemotes() bool {
 	remotes, err := e.ListRemotes()

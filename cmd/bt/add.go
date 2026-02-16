@@ -109,11 +109,11 @@ func runAdd(cmd *cobra.Command, args []string) error {
 
 		if baseInfo.IsLocal {
 			resolvedBaseBranch = baseInfo.Name
-			baseDisplayInfo = baseInfo.Name
+			baseDisplayInfo = baseInfo.Name + " (local)"
 			baseIsLocal = true
 		} else if baseInfo.IsRemote {
 			resolvedBaseBranch = baseInfo.RemoteRef
-			baseDisplayInfo = baseInfo.RemoteRef
+			baseDisplayInfo = baseInfo.RemoteRef + " (remote)"
 		} else {
 			return fmt.Errorf("base branch '%s' not found locally or on any remote", addBaseBranch)
 		}
@@ -198,7 +198,12 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		if baseDisplayInfo != "" {
 			fmt.Printf("Based on '%s'\n", baseDisplayInfo)
 		} else {
-			fmt.Println("Based on HEAD")
+			headBranch := wtMgr.Executor.ResolveHEAD()
+			if headBranch != "" {
+				fmt.Printf("Based on HEAD (%s)\n", headBranch)
+			} else {
+				fmt.Println("Based on HEAD")
+			}
 		}
 	}
 

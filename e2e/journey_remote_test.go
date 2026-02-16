@@ -386,7 +386,7 @@ func TestAddNewBranchWithRemoteBase(t *testing.T) {
 		stdout := runBtSuccess(t, projectDir, "add", "-b", "feat/new", "--base", "feature/remote")
 
 		// Should show the resolved remote ref as base
-		assertOutputContains(t, stdout, "Based on 'origin/feature/remote'")
+		assertOutputContains(t, stdout, "Based on 'origin/feature/remote (remote)'")
 		assertOutputContains(t, stdout, "Worktree created")
 
 		// Verify worktree was created with correct branch name
@@ -417,7 +417,7 @@ func TestAddNewBranchWithLocalBase(t *testing.T) {
 	t.Run("new branch based on local main", func(t *testing.T) {
 		stdout := runBtSuccess(t, projectDir, "add", "-b", "feat/from-main", "--base", "main")
 
-		assertOutputContains(t, stdout, "Based on 'main'")
+		assertOutputContains(t, stdout, "Based on 'main (local)'")
 		assertOutputContains(t, stdout, "Worktree created")
 		assertFileExists(t, filepath.Join(projectDir, "feat", "from-main"))
 	})
@@ -455,7 +455,7 @@ func TestAddNewBranchShowsBaseInfo(t *testing.T) {
 	t.Run("new branch without --base shows HEAD", func(t *testing.T) {
 		stdout := runBtSuccess(t, projectDir, "add", "-b", "feat/no-base")
 
-		assertOutputContains(t, stdout, "Based on HEAD")
+		assertOutputContains(t, stdout, "Based on HEAD (main)")
 		assertOutputContains(t, stdout, "Worktree created")
 	})
 }

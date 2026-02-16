@@ -1,6 +1,7 @@
 package git
 
 import (
+	"strconv"
 	"strings"
 )
 
@@ -125,4 +126,45 @@ func (e *Executor) localBranchExists(branch string) bool {
 func (e *Executor) remoteBranchExists(remote, branch string) bool {
 	_, err := e.Execute("show-ref", "--verify", "--quiet", "refs/remotes/"+remote+"/"+branch)
 	return err == nil
+}
+
+// ResolveHEAD returns the branch name that HEAD points to (e.g., "main").
+// Returns empty string if HEAD is detached or on error.
+func (e *Executor) ResolveHEAD() string {
+	output, err := e.Execute("symbolic-ref", "--short", "HEAD")
+	if err != nil {
+		return ""
+	}
+	return output
+}
+
+// HasRemotes returns true if any remotes are configured
+func (e *Executor) HasRemotes() bool {
+	remotes, err := e.ListRemotes()
+	if err != nil {
+		return false
+	}
+	return len(remotes) > 0
+}
+
+// GetUpstreamBehindCount returns how many commits a local branch is behind its upstream.
+// Returns 0 if no upstream is configured or on any error.
+func (e *Executor) GetUpstreamBehindCount(localBranch string) (int, error) {
+	// Check if the branch has an upstream configured
+	_, err := e.Execute("config", "--get", "branch."+localBranch+".remote")
+	if err != nil {
+		// No upstream configured
+		return 0, nil
+	}
+
+	output, err := e.Execute("rev-list", "--count", localBranch+".."+localBranch+"@{u}")
+	if err != nil {
+		return 0, nil
+	}
+
+	count, err := strconv.Atoi(strings.TrimSpace(output))
+	if err != nil {
+		return 0, nil
+	}
+	return count, nil
 }

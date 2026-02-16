@@ -125,7 +125,9 @@ Remote branch operation tests.
 |-----------|--------------|
 | `TestAddRemoteBranch` | Auto-detection and addition of remote branch |
 | `TestAddRemoteBranchExplicit` | Explicit addition with `origin/branch` format |
-| `TestAddWithFetch` | Fetching latest branches with `--fetch` option |
+| `TestAddAutoFetch` | Auto-fetch from remotes by default when adding worktree |
+| `TestAddNoFetch` | `--no-fetch` option skips auto-fetch |
+| `TestAddUpstreamBehindWarning` | Warning when local branch is behind its upstream |
 | `TestAddBranchNotFound` | Error message when adding non-existent branch |
 | `TestAddLocalBranchPriority` | Local branch priority over remote |
 | `TestAddNewBranchWithRemoteBase` | `--base` with remote-only branch resolves correctly (DWIM bug fix) |

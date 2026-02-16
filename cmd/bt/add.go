@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/amaya382/baretree/internal/repository"
 	"github.com/amaya382/baretree/internal/worktree"
@@ -15,13 +17,16 @@ var (
 	addBaseBranch string
 	addDetach     bool
 	addForce      bool
-	addFetch      bool
+	addNoFetch    bool
 )
 
 var addCmd = &cobra.Command{
 	Use:   "add <branch-name>",
 	Short: "Create a worktree for a branch (creates branch with -b)",
 	Long: `Create a new worktree for a branch.
+
+When remotes are configured, fetches from all remotes before adding the worktree
+(use --no-fetch to skip).
 
 Supports multiple modes:
   1. Create new branch:     bt add -b feature/new
@@ -42,7 +47,7 @@ Examples:
   bt add existing-local-branch     # Uses existing local branch
   bt add feature/remote            # Auto-detects and tracks origin/feature/remote
   bt add upstream/feature/test     # Tracks upstream/feature/test
-  bt add --fetch feature/new       # Fetch before adding`,
+  bt add --no-fetch feature/new    # Skip auto-fetch from remotes`,
 	Args: cobra.ExactArgs(1),
 	RunE: runAdd,
 }
@@ -52,7 +57,7 @@ func init() {
 	addCmd.Flags().StringVar(&addBaseBranch, "base", "", "Base branch for new branch (default: HEAD)")
 	addCmd.Flags().BoolVar(&addDetach, "detach", false, "Create detached HEAD worktree")
 	addCmd.Flags().BoolVar(&addForce, "force", false, "Force creation even if worktree exists")
-	addCmd.Flags().BoolVar(&addFetch, "fetch", false, "Fetch from remote before adding worktree")
+	addCmd.Flags().BoolVar(&addNoFetch, "no-fetch", false, "Skip auto-fetch from remotes")
 }
 
 func runAdd(cmd *cobra.Command, args []string) error {
@@ -84,8 +89,8 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	// Create worktree manager
 	wtMgr := worktree.NewManager(repoRoot, bareDir, mgr.Config)
 
-	// Fetch if requested
-	if addFetch {
+	// Auto-fetch unless --no-fetch is specified or no remotes configured
+	if !addNoFetch && wtMgr.Executor.HasRemotes() {
 		fmt.Println("Fetching from remotes...")
 		if err := wtMgr.Fetch(""); err != nil {
 			return fmt.Errorf("failed to fetch: %w", err)
@@ -95,6 +100,7 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	// Resolve base branch if specified
 	var resolvedBaseBranch string
 	var baseDisplayInfo string
+	var baseIsLocal bool
 	if addBaseBranch != "" {
 		baseInfo, err := wtMgr.ResolveBranch(addBaseBranch)
 		if err != nil {
@@ -103,10 +109,11 @@ func runAdd(cmd *cobra.Command, args []string) error {
 
 		if baseInfo.IsLocal {
 			resolvedBaseBranch = baseInfo.Name
-			baseDisplayInfo = baseInfo.Name
+			baseDisplayInfo = baseInfo.Name + " (local)"
+			baseIsLocal = true
 		} else if baseInfo.IsRemote {
 			resolvedBaseBranch = baseInfo.RemoteRef
-			baseDisplayInfo = baseInfo.RemoteRef
+			baseDisplayInfo = baseInfo.RemoteRef + " (remote)"
 		} else {
 			return fmt.Errorf("base branch '%s' not found locally or on any remote", addBaseBranch)
 		}
@@ -119,6 +126,7 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	}
 
 	var branchName string
+	var resolvedBranchIsLocal bool
 
 	if addNewBranch {
 		// Creating a new branch - use spec as-is
@@ -133,6 +141,7 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		if branchInfo.IsLocal {
 			// Local branch exists
 			branchName = branchInfo.Name
+			resolvedBranchIsLocal = true
 		} else if branchInfo.IsRemote {
 			// Remote branch found - create tracking branch
 			branchName = branchInfo.Name
@@ -144,12 +153,57 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Upstream behind detection
+	if !addForce {
+		var branchToCheck string
+
+		if addNewBranch {
+			if addBaseBranch != "" && baseIsLocal {
+				// --base was specified and resolved to a local branch
+				branchToCheck = resolvedBaseBranch
+			} else if addBaseBranch == "" {
+				// No --base: check the default branch
+				branchToCheck = mgr.Config.Repository.DefaultBranch
+				if branchToCheck == "" {
+					branchToCheck = "main"
+				}
+			}
+		} else if resolvedBranchIsLocal {
+			// Not -b mode: local branch resolved, check it
+			branchToCheck = branchName
+		}
+
+		if branchToCheck != "" {
+			behindCount, _ := wtMgr.Executor.GetUpstreamBehindCount(branchToCheck)
+			if behindCount > 0 {
+				if isTerminal() {
+					fmt.Printf("Warning: '%s' is %d commit(s) behind its upstream.\n", branchToCheck, behindCount)
+					fmt.Printf("Continue anyway? [y/N]: ")
+					reader := bufio.NewReader(os.Stdin)
+					response, _ := reader.ReadString('\n')
+					response = strings.TrimSpace(strings.ToLower(response))
+					if response != "y" && response != "yes" {
+						return fmt.Errorf("aborted: '%s' is behind upstream", branchToCheck)
+					}
+				} else {
+					// Non-TTY: warn but proceed
+					fmt.Printf("Warning: '%s' is %d commit(s) behind its upstream (non-interactive, proceeding).\n", branchToCheck, behindCount)
+				}
+			}
+		}
+	}
+
 	// Display base information
 	if addNewBranch {
 		if baseDisplayInfo != "" {
 			fmt.Printf("Based on '%s'\n", baseDisplayInfo)
 		} else {
-			fmt.Println("Based on HEAD")
+			headBranch := wtMgr.Executor.ResolveHEAD()
+			if headBranch != "" {
+				fmt.Printf("Based on HEAD (%s)\n", headBranch)
+			} else {
+				fmt.Println("Based on HEAD")
+			}
 		}
 	}
 
@@ -194,4 +248,13 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  # Start working on %s\n", branchName)
 
 	return nil
+}
+
+// isTerminal checks if stdin is connected to a terminal
+func isTerminal() bool {
+	stat, err := os.Stdin.Stat()
+	if err != nil {
+		return false
+	}
+	return (stat.Mode() & os.ModeCharDevice) != 0
 }

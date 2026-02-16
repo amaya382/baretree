@@ -44,6 +44,7 @@ Branch resolution order:
 
 Examples:
   bt add -b feature/auth           # Creates new branch and worktree
+  bt add -b feature/new --base abc123  # Creates new branch based on a commit
   bt add existing-local-branch     # Uses existing local branch
   bt add feature/remote            # Auto-detects and tracks origin/feature/remote
   bt add upstream/feature/test     # Tracks upstream/feature/test
@@ -54,7 +55,7 @@ Examples:
 
 func init() {
 	addCmd.Flags().BoolVarP(&addNewBranch, "branch", "b", false, "Create new branch")
-	addCmd.Flags().StringVar(&addBaseBranch, "base", "", "Base branch for new branch (default: HEAD)")
+	addCmd.Flags().StringVar(&addBaseBranch, "base", "", "Base branch or commit hash for new branch (default: HEAD)")
 	addCmd.Flags().BoolVar(&addDetach, "detach", false, "Create detached HEAD worktree")
 	addCmd.Flags().BoolVar(&addForce, "force", false, "Force creation even if worktree exists")
 	addCmd.Flags().BoolVar(&addNoFetch, "no-fetch", false, "Skip auto-fetch from remotes")
@@ -114,6 +115,13 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		} else if baseInfo.IsRemote {
 			resolvedBaseBranch = baseInfo.RemoteRef
 			baseDisplayInfo = baseInfo.RemoteRef + " (remote)"
+		} else if wtMgr.Executor.IsCommitHash(addBaseBranch) {
+			resolvedBaseBranch = addBaseBranch
+			shortHash := addBaseBranch
+			if len(shortHash) > 7 {
+				shortHash = shortHash[:7]
+			}
+			baseDisplayInfo = shortHash + " (commit)"
 		} else {
 			return fmt.Errorf("base branch '%s' not found locally or on any remote", addBaseBranch)
 		}

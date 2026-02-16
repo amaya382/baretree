@@ -168,3 +168,9 @@ func (e *Executor) GetUpstreamBehindCount(localBranch string) (int, error) {
 	}
 	return count, nil
 }
+
+// IsCommitHash checks if the given string resolves to a valid commit object
+func (e *Executor) IsCommitHash(ref string) bool {
+	_, err := e.Execute("rev-parse", "--verify", "--quiet", ref+"^{commit}")
+	return err == nil
+}

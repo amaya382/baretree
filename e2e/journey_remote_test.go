@@ -459,3 +459,48 @@ func TestAddNewBranchShowsBaseInfo(t *testing.T) {
 		assertOutputContains(t, stdout, "Worktree created")
 	})
 }
+
+// TestAddNewBranchWithCommitBase tests --base with a commit hash
+func TestAddNewBranchWithCommitBase(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	tempDir := createTempDir(t, "commit-base")
+
+	runBtSuccess(t, tempDir, "repo", "init", "test-repo")
+	projectDir := filepath.Join(tempDir, "test-repo")
+	bareDir := filepath.Join(projectDir, ".git")
+
+	// Get the full commit hash of HEAD
+	cmd := exec.Command("git", "rev-parse", "HEAD")
+	cmd.Dir = bareDir
+	output, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("failed to get commit hash: %v", err)
+	}
+	fullHash := strings.TrimSpace(string(output))
+
+	t.Run("new branch based on full commit hash", func(t *testing.T) {
+		stdout := runBtSuccess(t, projectDir, "add", "-b", "feat/from-commit", "--base", fullHash)
+
+		assertOutputContains(t, stdout, "(commit)")
+		assertOutputContains(t, stdout, "Worktree created")
+		assertFileExists(t, filepath.Join(projectDir, "feat", "from-commit"))
+	})
+
+	t.Run("new branch based on short commit hash", func(t *testing.T) {
+		shortHash := fullHash[:7]
+		stdout := runBtSuccess(t, projectDir, "add", "-b", "feat/from-short-commit", "--base", shortHash)
+
+		assertOutputContains(t, stdout, "(commit)")
+		assertOutputContains(t, stdout, "Worktree created")
+		assertFileExists(t, filepath.Join(projectDir, "feat", "from-short-commit"))
+	})
+
+	t.Run("error when base is invalid commit hash", func(t *testing.T) {
+		_, stderr := runBtExpectError(t, projectDir, "add", "-b", "feat/bad-hash", "--base", "deadbeef00deadbeef00")
+
+		assertOutputContains(t, stderr, "not found")
+	})
+}

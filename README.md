@@ -326,7 +326,7 @@ cp examples/rules/working-directory-on-git-worktree-with-baretree.md .cursor/rul
 
 | Command | Description |
 |---------|-------------|
-| `bt add <branch>` | Add worktree (`-b` for new branch, auto-fetches remotes, `--no-fetch` to skip) |
+| `bt add <branch>` | Add worktree (`-b` for new branch, `--base` for base branch/commit, auto-fetches remotes) |
 | `bt list` / `bt ls` | List worktrees |
 | `bt remove` / `bt rm` | Remove worktree (`--with-branch` to delete branch) |
 | `bt cd <name>` | Switch to worktree (`@` for default, `-` for previous) |

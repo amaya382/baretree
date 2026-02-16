@@ -134,6 +134,7 @@ Remote branch operation tests.
 | `TestAddNewBranchWithLocalBase` | `--base` with local branch works correctly |
 | `TestAddNewBranchWithNonexistentBase` | Error when `--base` specifies non-existent branch |
 | `TestAddNewBranchShowsBaseInfo` | Display of base branch information (HEAD fallback) |
+| `TestAddNewBranchWithCommitBase` | `--base` with commit hash (full and short) works correctly |
 
 ### journey_rename_test.go
 

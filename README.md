@@ -116,6 +116,7 @@ bt go user/repo           # Jump with more specific path
 ```bash
 bt add -b feature/auth            # Create feature branch (auto-fetches remotes)
 bt add -b feature/auth --no-fetch # Skip auto-fetch
+bt add -b feature/auth --behind=pull  # Pull base branch if behind upstream, then create
 bt cd feature/auth                # Jump to worktree
 bt ls                             # List all worktrees
 bt rm feature/auth                # Remove when done
@@ -156,6 +157,7 @@ cd ~/projects/my-project
 ```bash
 bt add -b feature/auth            # Create feature branch (auto-fetches remotes)
 bt add -b feature/auth --no-fetch # Skip auto-fetch
+bt add -b feature/auth --behind=pull  # Pull base branch if behind upstream, then create
 bt cd feature/auth                # Jump to worktree
 bt ls                             # List all worktrees
 bt rm feature/auth                # Remove when done
@@ -326,7 +328,7 @@ cp examples/rules/working-directory-on-git-worktree-with-baretree.md .cursor/rul
 
 | Command | Description |
 |---------|-------------|
-| `bt add <branch>` | Add worktree (`-b` for new branch, `--base` for base branch/commit, auto-fetches remotes) |
+| `bt add <branch>` | Add worktree (`-b` for new branch, `--base` for base branch/commit, `--behind` for behind-upstream action, auto-fetches remotes) |
 | `bt list` / `bt ls` | List worktrees |
 | `bt remove` / `bt rm` | Remove worktree (`--with-branch` to delete branch) |
 | `bt cd <name>` | Switch to worktree (`@` for default, `-` for previous) |

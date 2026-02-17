@@ -281,14 +281,14 @@ func TestAddUpstreamBehindWarning(t *testing.T) {
 	cmd.Dir = workPath
 	_ = cmd.Run()
 
-	t.Run("aborts when default branch is behind upstream without force", func(t *testing.T) {
+	t.Run("behind=continue continues with warning when behind", func(t *testing.T) {
 		// auto-fetch will update remote refs, making local main behind origin/main
-		stdout, stderr := runBtExpectError(t, projectDir, "add", "-b", "feat/behind-test")
+		stdout := runBtSuccess(t, projectDir, "add", "-b", "feat/behind-test", "--behind=continue")
 
-		// Should show warning about being behind
-		combined := stdout + stderr
-		assertOutputContains(t, combined, "Warning: 'main' is")
-		assertOutputContains(t, combined, "behind its upstream")
+		// Should show warning about being behind but still proceed
+		assertOutputContains(t, stdout, "Warning: 'main' is")
+		assertOutputContains(t, stdout, "behind its upstream")
+		assertOutputContains(t, stdout, "Worktree created")
 	})
 
 	t.Run("force skips behind check", func(t *testing.T) {
@@ -502,5 +502,138 @@ func TestAddNewBranchWithCommitBase(t *testing.T) {
 		_, stderr := runBtExpectError(t, projectDir, "add", "-b", "feat/bad-hash", "--base", "deadbeef00deadbeef00")
 
 		assertOutputContains(t, stderr, "not found")
+	})
+}
+
+// setupBehindRepo creates a repository where the local main branch is behind its upstream.
+// Returns (projectDir, bareDir).
+func setupBehindRepo(t *testing.T, prefix string) (string, string) {
+	t.Helper()
+
+	tempDir := createTempDir(t, prefix)
+	originPath := setupRemoteRepo(t, tempDir)
+
+	runBtSuccess(t, tempDir, "repo", "clone", originPath, "test-repo")
+	projectDir := filepath.Join(tempDir, "test-repo")
+	bareDir := filepath.Join(projectDir, ".git")
+
+	// Configure fetch refspec and fetch
+	cmd := exec.Command("git", "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
+	cmd.Dir = bareDir
+	_ = cmd.Run()
+	cmd = exec.Command("git", "fetch", "origin")
+	cmd.Dir = bareDir
+	_ = cmd.Run()
+
+	// Set upstream for main branch
+	cmd = exec.Command("git", "config", "branch.main.remote", "origin")
+	cmd.Dir = bareDir
+	_ = cmd.Run()
+	cmd = exec.Command("git", "config", "branch.main.merge", "refs/heads/main")
+	cmd.Dir = bareDir
+	_ = cmd.Run()
+
+	// Push a new commit to origin after clone
+	workPath := filepath.Join(tempDir, "work")
+	cmd = exec.Command("git", "checkout", "main")
+	cmd.Dir = workPath
+	_ = cmd.Run()
+	newFilePath := filepath.Join(workPath, "extra.txt")
+	_ = os.WriteFile(newFilePath, []byte("extra"), 0644)
+	cmd = exec.Command("git", "add", ".")
+	cmd.Dir = workPath
+	_ = cmd.Run()
+	cmd = exec.Command("git", "commit", "-m", "extra commit")
+	cmd.Dir = workPath
+	_ = cmd.Run()
+	cmd = exec.Command("git", "push", "origin", "main")
+	cmd.Dir = workPath
+	_ = cmd.Run()
+
+	return projectDir, bareDir
+}
+
+// TestAddBehindFlagContinue tests --behind=continue when base branch is behind
+func TestAddBehindFlagContinue(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	projectDir, _ := setupBehindRepo(t, "behind-continue")
+
+	t.Run("behind=continue proceeds with warning", func(t *testing.T) {
+		stdout := runBtSuccess(t, projectDir, "add", "-b", "feat/behind-continue", "--behind=continue")
+
+		assertOutputContains(t, stdout, "Warning: 'main' is")
+		assertOutputContains(t, stdout, "behind its upstream")
+		assertOutputContains(t, stdout, "Worktree created")
+	})
+}
+
+// TestAddBehindFlagPull tests --behind=pull when base branch is behind
+func TestAddBehindFlagPull(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	projectDir, bareDir := setupBehindRepo(t, "behind-pull")
+
+	t.Run("behind=pull pulls and then creates worktree", func(t *testing.T) {
+		// Get commit count before pull
+		cmd := exec.Command("git", "rev-list", "--count", "main")
+		cmd.Dir = bareDir
+		beforeOutput, _ := cmd.Output()
+		beforeCount := strings.TrimSpace(string(beforeOutput))
+
+		stdout := runBtSuccess(t, projectDir, "add", "-b", "feat/behind-pull", "--behind=pull")
+
+		assertOutputContains(t, stdout, "Warning: 'main' is")
+		assertOutputContains(t, stdout, "Pulling 'main'")
+		assertOutputContains(t, stdout, "is now up to date")
+		assertOutputContains(t, stdout, "Worktree created")
+
+		// Verify that main was actually pulled (commit count should increase)
+		cmd = exec.Command("git", "rev-list", "--count", "main")
+		cmd.Dir = bareDir
+		afterOutput, _ := cmd.Output()
+		afterCount := strings.TrimSpace(string(afterOutput))
+
+		if afterCount == beforeCount {
+			t.Errorf("expected main to be pulled (commit count unchanged: %s)", beforeCount)
+		}
+	})
+}
+
+// TestAddBehindFlagAbort tests --behind=abort when base branch is behind
+func TestAddBehindFlagAbort(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	projectDir, _ := setupBehindRepo(t, "behind-abort")
+
+	t.Run("behind=abort aborts when behind", func(t *testing.T) {
+		stdout, stderr := runBtExpectError(t, projectDir, "add", "-b", "feat/behind-abort", "--behind=abort")
+
+		combined := stdout + stderr
+		assertOutputContains(t, combined, "Warning: 'main' is")
+		assertOutputContains(t, combined, "aborted")
+	})
+}
+
+// TestAddBehindFlagInvalid tests --behind with invalid value
+func TestAddBehindFlagInvalid(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	tempDir := createTempDir(t, "behind-invalid")
+	runBtSuccess(t, tempDir, "repo", "init", "test-repo")
+	projectDir := filepath.Join(tempDir, "test-repo")
+
+	t.Run("invalid behind value shows error", func(t *testing.T) {
+		_, stderr := runBtExpectError(t, projectDir, "add", "-b", "feat/invalid", "--behind=invalid")
+
+		assertOutputContains(t, stderr, "invalid value for --behind")
 	})
 }

@@ -127,7 +127,7 @@ Remote branch operation tests.
 | `TestAddRemoteBranchExplicit` | Explicit addition with `origin/branch` format |
 | `TestAddAutoFetch` | Auto-fetch from remotes by default when adding worktree |
 | `TestAddNoFetch` | `--no-fetch` option skips auto-fetch |
-| `TestAddUpstreamBehindWarning` | Warning when local branch is behind its upstream |
+| `TestAddUpstreamBehindWarning` | Warning when local branch is behind its upstream (non-TTY continues by default) |
 | `TestAddBranchNotFound` | Error message when adding non-existent branch |
 | `TestAddLocalBranchPriority` | Local branch priority over remote |
 | `TestAddNewBranchWithRemoteBase` | `--base` with remote-only branch resolves correctly (DWIM bug fix) |
@@ -135,6 +135,10 @@ Remote branch operation tests.
 | `TestAddNewBranchWithNonexistentBase` | Error when `--base` specifies non-existent branch |
 | `TestAddNewBranchShowsBaseInfo` | Display of base branch information (HEAD fallback) |
 | `TestAddNewBranchWithCommitBase` | `--base` with commit hash (full and short) works correctly |
+| `TestAddBehindFlagContinue` | `--behind=continue` proceeds with warning when behind |
+| `TestAddBehindFlagPull` | `--behind=pull` pulls base branch and then creates worktree |
+| `TestAddBehindFlagAbort` | `--behind=abort` aborts when base branch is behind |
+| `TestAddBehindFlagInvalid` | Invalid `--behind` value shows error |
 
 ### journey_rename_test.go
 

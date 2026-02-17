@@ -1,6 +1,7 @@
 package git
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 )
@@ -173,4 +174,35 @@ func (e *Executor) GetUpstreamBehindCount(localBranch string) (int, error) {
 func (e *Executor) IsCommitHash(ref string) bool {
 	_, err := e.Execute("rev-parse", "--verify", "--quiet", ref+"^{commit}")
 	return err == nil
+}
+
+// PullBranch fast-forwards the specified local branch to its upstream.
+// Works in bare repositories by verifying the fast-forward condition and using update-ref.
+func (e *Executor) PullBranch(localBranch string) error {
+	// Resolve the upstream commit
+	upstreamHash, err := e.Execute("rev-parse", localBranch+"@{u}")
+	if err != nil {
+		return fmt.Errorf("failed to resolve upstream for '%s': %w", localBranch, err)
+	}
+
+	// Resolve the local branch commit
+	localHash, err := e.Execute("rev-parse", localBranch)
+	if err != nil {
+		return fmt.Errorf("failed to resolve '%s': %w", localBranch, err)
+	}
+
+	if localHash == upstreamHash {
+		return nil // Already up to date
+	}
+
+	// Verify that the upstream is a fast-forward of the local branch
+	// (i.e., local branch is an ancestor of upstream)
+	_, err = e.Execute("merge-base", "--is-ancestor", localBranch, localBranch+"@{u}")
+	if err != nil {
+		return fmt.Errorf("cannot fast-forward '%s': upstream has diverged", localBranch)
+	}
+
+	// Update the local branch ref to the upstream commit
+	_, err = e.Execute("update-ref", "refs/heads/"+localBranch, upstreamHash)
+	return err
 }

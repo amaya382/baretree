@@ -200,6 +200,11 @@ func (m *Manager) ResolveBranch(branchSpec string) (*git.BranchInfo, error) {
 	return m.Executor.ResolveBranch(branchSpec)
 }
 
+// ListLocalBranches returns all local branch names
+func (m *Manager) ListLocalBranches() ([]string, error) {
+	return m.Executor.ListLocalBranches()
+}
+
 // IsManaged checks if a worktree is managed by baretree
 // A managed worktree must be within the repository root and not inside another worktree
 func (m *Manager) IsManaged(worktreePath string) bool {

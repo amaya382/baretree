@@ -176,6 +176,20 @@ func (e *Executor) IsCommitHash(ref string) bool {
 	return err == nil
 }
 
+// ListLocalBranches returns a list of all local branch names
+func (e *Executor) ListLocalBranches() ([]string, error) {
+	output, err := e.Execute("for-each-ref", "--format=%(refname:short)", "refs/heads/")
+	if err != nil {
+		return nil, fmt.Errorf("failed to list local branches: %w", err)
+	}
+
+	if output == "" {
+		return []string{}, nil
+	}
+
+	return strings.Split(output, "\n"), nil
+}
+
 // PullBranch fast-forwards the specified local branch to its upstream.
 // Works in bare repositories by verifying the fast-forward condition and using update-ref.
 func (e *Executor) PullBranch(localBranch string) error {

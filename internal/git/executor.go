@@ -76,6 +76,16 @@ func Clone(args ...string) error {
 	return nil
 }
 
+// ConfigureRemoteRefspec sets up the fetch refspec for a bare repository.
+// Bare clones do not automatically configure the refspec, so remote tracking
+// branches (refs/remotes/origin/*) are not populated by default.
+// This configures the standard refspec: +refs/heads/*:refs/remotes/origin/*
+func ConfigureRemoteRefspec(barePath string) error {
+	executor := NewExecutor(barePath)
+	_, err := executor.Execute("config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
+	return err
+}
+
 // ErrGitUserNotConfigured is returned when git user.name or user.email is not set
 type ErrGitUserNotConfigured struct {
 	MissingName  bool

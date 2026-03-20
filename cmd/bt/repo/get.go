@@ -97,6 +97,11 @@ func runGet(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to clone repository: %w", err)
 	}
 
+	// Configure fetch refspec (bare clone does not set this up automatically)
+	if err := git.ConfigureRemoteRefspec(barePath); err != nil {
+		return fmt.Errorf("failed to configure remote refspec: %w", err)
+	}
+
 	// Determine default branch
 	var defaultBranch string
 	if getBranch != "" {

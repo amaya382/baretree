@@ -182,25 +182,21 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		)
 	}
 
-	fmt.Println()
-
-	// Print local branches without worktrees
+	// Append local branches without worktrees at the bottom of the table
 	localBranches, err := wtMgr.ListLocalBranches()
 	if err == nil {
-		var orphanBranches []string
 		for _, branch := range localBranches {
 			if !worktreeBranches[branch] {
-				orphanBranches = append(orphanBranches, branch)
+				fmt.Printf("    %-20s  %-30s  %s\n",
+					branch,
+					"-",
+					"[No worktree]",
+				)
 			}
-		}
-		if len(orphanBranches) > 0 {
-			fmt.Println("Branches without worktrees:")
-			for _, branch := range orphanBranches {
-				fmt.Printf("    %-20s  (no worktree)\n", branch)
-			}
-			fmt.Println()
 		}
 	}
+
+	fmt.Println()
 
 	// Print warnings
 	hasWarnings := len(warningWorktrees) > 0 || len(brokenWorktrees) > 0 || defaultBranchMissing

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/amaya382/baretree/internal/repository"
@@ -83,8 +84,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Print worktrees
 	fmt.Println("Worktrees:")
-	fmt.Printf("     %-20s  %-30s  %s\n", "BRANCH", "PATH", "STATUS")
-	var unmanagedWorktrees []string
+	var warningWorktrees []worktreeWarning
 
 	// Determine which worktree we're currently in
 	cwdAbs, _ := filepath.Abs(cwd)
@@ -97,9 +97,68 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Track branches that have worktrees
+	worktreeBranches := make(map[string]bool)
+
+	// Collect orphan branches early so they are included in column width calculation
+	var orphanBranches []string
+	localBranches, err := wtMgr.ListLocalBranches()
+	if err == nil {
+		wtBranchSet := make(map[string]bool)
+		for _, wt := range worktrees {
+			if wt.Branch != "" {
+				wtBranchSet[wt.Branch] = true
+			}
+		}
+		for _, branch := range localBranches {
+			if !wtBranchSet[branch] {
+				orphanBranches = append(orphanBranches, branch)
+			}
+		}
+	}
+
+	// Calculate dynamic column widths
+	maxBranchLen := len("BRANCH")
+	maxPathLen := len("PATH")
+	for _, wt := range worktrees {
+		branchName := wt.Branch
+		if branchName == "" {
+			branchName = "(detached)"
+		}
+		if len(branchName) > maxBranchLen {
+			maxBranchLen = len(branchName)
+		}
+		relPath, _ := filepath.Rel(repoRoot, wt.Path)
+		if len(relPath) > maxPathLen {
+			maxPathLen = len(relPath)
+		}
+	}
+	for _, branch := range orphanBranches {
+		if len(branch) > maxBranchLen {
+			maxBranchLen = len(branch)
+		}
+	}
+
+	// Build display rows with sort order:
+	//   0: default branch, 1: managed, 2: has warnings, 3: orphan branches
+	type displayRow struct {
+		sortOrder int
+		prefix    string
+		branch    string
+		path      string
+		status    string
+		symbol    string
+	}
+
+	defaultBranch := mgr.Config.Repository.DefaultBranch
+	if defaultBranch == "" {
+		defaultBranch = "main"
+	}
+
+	var rows []displayRow
+
 	for _, wt := range worktrees {
 		prefix := " "
-		// Check if current directory is within this worktree
 		wtPathAbs, _ := filepath.Abs(wt.Path)
 		if isPathWithin(cwdAbs, wtPathAbs) {
 			prefix = "@"
@@ -108,47 +167,103 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		branchName := wt.Branch
 		if branchName == "" {
 			branchName = "(detached)"
-		}
-
-		// Check if this worktree is broken (path doesn't exist)
-		if _, isBroken := brokenBranches[branchName]; isBroken {
-			relPath, _ := filepath.Rel(repoRoot, wt.Path)
-			fmt.Printf("  %s %-20s  %-30s  %s%s\n",
-				prefix,
-				branchName,
-				relPath,
-				"[Broken]",
-				" ⚠️",
-			)
-			continue
-		}
-
-		// Check if managed and not nested inside another worktree
-		managed := wtMgr.IsManaged(wt.Path) && !wtMgr.IsNestedInWorktree(wt.Path, allWorktreePaths)
-		status := "[Managed]"
-		statusSymbol := ""
-
-		if !managed {
-			status = "[Unmanaged]"
-			statusSymbol = " ⚠️"
-			unmanagedWorktrees = append(unmanagedWorktrees, wt.Path)
+		} else {
+			worktreeBranches[branchName] = true
 		}
 
 		relPath, _ := filepath.Rel(repoRoot, wt.Path)
 
-		fmt.Printf("  %s %-20s  %-30s  %s%s\n",
-			prefix,
-			branchName,
-			relPath,
-			status,
-			statusSymbol,
+		// Check if this worktree is broken (path doesn't exist)
+		if _, isBroken := brokenBranches[branchName]; isBroken {
+			warningWorktrees = append(warningWorktrees, worktreeWarning{
+				path:    wt.Path,
+				branch:  branchName,
+				reasons: []string{"broken"},
+			})
+			rows = append(rows, displayRow{
+				sortOrder: 2, prefix: prefix, branch: branchName,
+				path: relPath, status: "[Broken]", symbol: " ⚠️",
+			})
+			continue
+		}
+
+		// Determine detailed status flags
+		var statusParts []string
+		var reasons []string
+
+		isInRepoRoot := wtMgr.IsManaged(wt.Path)
+		isNested := wtMgr.IsNestedInWorktree(wt.Path, allWorktreePaths)
+
+		nameMismatch := branchName != "(detached)" && relPath != branchName
+
+		if !isInRepoRoot {
+			statusParts = append(statusParts, "Outside root")
+			reasons = append(reasons, "outside-root")
+		}
+		if isNested {
+			statusParts = append(statusParts, "Nested")
+			reasons = append(reasons, "nested")
+		}
+		if nameMismatch {
+			statusParts = append(statusParts, "Name mismatch")
+			reasons = append(reasons, "name-mismatch")
+		}
+
+		status := "[Managed]"
+		statusSymbol := ""
+		order := 1 // managed
+		if len(statusParts) > 0 {
+			status = "[" + strings.Join(statusParts, ", ") + "]"
+			statusSymbol = " ⚠️"
+			order = 2 // has warnings
+			warningWorktrees = append(warningWorktrees, worktreeWarning{
+				path:    wt.Path,
+				branch:  branchName,
+				relPath: relPath,
+				reasons: reasons,
+			})
+		}
+
+		if branchName == defaultBranch {
+			order = 0 // default branch always first
+		}
+
+		rows = append(rows, displayRow{
+			sortOrder: order, prefix: prefix, branch: branchName,
+			path: relPath, status: status, symbol: statusSymbol,
+		})
+	}
+
+	// Append orphan branches
+	for _, branch := range orphanBranches {
+		rows = append(rows, displayRow{
+			sortOrder: 3, prefix: " ", branch: branch,
+			path: "-", status: "[No worktree]", symbol: "",
+		})
+	}
+
+	// Stable sort by sortOrder
+	sort.SliceStable(rows, func(i, j int) bool {
+		return rows[i].sortOrder < rows[j].sortOrder
+	})
+
+	// Print header and rows
+	fmt.Printf("     %-*s  %-*s  %s\n", maxBranchLen, "BRANCH", maxPathLen, "PATH", "STATUS")
+	for _, r := range rows {
+		fmt.Printf("  %s %-*s  %-*s  %s%s\n",
+			r.prefix,
+			maxBranchLen, r.branch,
+			maxPathLen, r.path,
+			r.status,
+			r.symbol,
 		)
 	}
 
 	fmt.Println()
 
 	// Print warnings
-	if len(unmanagedWorktrees) > 0 || len(brokenWorktrees) > 0 || defaultBranchMissing {
+	hasWarnings := len(warningWorktrees) > 0 || len(brokenWorktrees) > 0 || defaultBranchMissing
+	if hasWarnings {
 		fmt.Println("Warnings:")
 		if defaultBranchMissing {
 			fmt.Printf("  - Default branch worktree '%s' does not exist\n", mgr.Config.Repository.DefaultBranch)
@@ -157,14 +272,24 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			fmt.Println("      - Use 'main' as default: bt config default-branch --unset")
 			fmt.Println("      - Or set your default branch: bt config default-branch <branch>")
 		}
-		for _, path := range unmanagedWorktrees {
-			fmt.Printf("  - Worktree at %s is outside managed directory\n", path)
-			fmt.Printf("    Run 'bt repair %s' to fix it\n", path)
-		}
-		for _, bw := range brokenWorktrees {
-			fmt.Printf("  - Worktree '%s' has broken path (moved or deleted)\n", bw.branch)
-			fmt.Printf("    Last known: %s\n", bw.oldPath)
-			fmt.Printf("    Run 'bt repair --fix-paths /new/path' to fix it\n")
+		for _, ww := range warningWorktrees {
+			for _, reason := range ww.reasons {
+				switch reason {
+				case "outside-root":
+					fmt.Printf("  - Worktree '%s' at %s is outside repository root\n", ww.branch, ww.path)
+					fmt.Printf("    Run 'bt repair %s' to move it inside\n", ww.path)
+				case "nested":
+					fmt.Printf("  - Worktree '%s' at %s is nested inside another worktree\n", ww.branch, ww.relPath)
+					fmt.Printf("    Run 'bt repair %s' to fix it\n", ww.path)
+				case "name-mismatch":
+					fmt.Printf("  - Worktree '%s' path '%s' does not match branch name\n", ww.branch, ww.relPath)
+					fmt.Printf("    Expected path: %s\n", ww.branch)
+					fmt.Printf("    Run 'bt repair %s' to rename it\n", ww.path)
+				case "broken":
+					fmt.Printf("  - Worktree '%s' has broken path (moved or deleted)\n", ww.branch)
+					fmt.Printf("    Run 'bt repair --fix-paths /new/path' to fix it\n")
+				}
+			}
 		}
 		fmt.Println()
 	}
@@ -275,6 +400,14 @@ func joinWorktrees(names []string) string {
 		result += ", " + names[i]
 	}
 	return result
+}
+
+// worktreeWarning holds details about a worktree issue for the warnings section
+type worktreeWarning struct {
+	path    string
+	branch  string
+	relPath string
+	reasons []string // "outside-root", "nested", "name-mismatch", "broken"
 }
 
 // isPathWithin checks if childPath is within parentPath

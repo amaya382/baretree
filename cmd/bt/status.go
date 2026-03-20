@@ -83,7 +83,6 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Print worktrees
 	fmt.Println("Worktrees:")
-	fmt.Printf("     %-20s  %-30s  %s\n", "BRANCH", "PATH", "STATUS")
 	var unmanagedWorktrees []string
 
 	// Determine which worktree we're currently in
@@ -96,6 +95,25 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			allWorktreePaths = append(allWorktreePaths, wt.Path)
 		}
 	}
+
+	// Calculate dynamic column widths
+	maxBranchLen := len("BRANCH")
+	maxPathLen := len("PATH")
+	for _, wt := range worktrees {
+		branchName := wt.Branch
+		if branchName == "" {
+			branchName = "(detached)"
+		}
+		if len(branchName) > maxBranchLen {
+			maxBranchLen = len(branchName)
+		}
+		relPath, _ := filepath.Rel(repoRoot, wt.Path)
+		if len(relPath) > maxPathLen {
+			maxPathLen = len(relPath)
+		}
+	}
+
+	fmt.Printf("     %-*s  %-*s  %s\n", maxBranchLen, "BRANCH", maxPathLen, "PATH", "STATUS")
 
 	for _, wt := range worktrees {
 		prefix := " "
@@ -113,10 +131,10 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		// Check if this worktree is broken (path doesn't exist)
 		if _, isBroken := brokenBranches[branchName]; isBroken {
 			relPath, _ := filepath.Rel(repoRoot, wt.Path)
-			fmt.Printf("  %s %-20s  %-30s  %s%s\n",
+			fmt.Printf("  %s %-*s  %-*s  %s%s\n",
 				prefix,
-				branchName,
-				relPath,
+				maxBranchLen, branchName,
+				maxPathLen, relPath,
 				"[Broken]",
 				" ⚠️",
 			)
@@ -136,10 +154,10 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 		relPath, _ := filepath.Rel(repoRoot, wt.Path)
 
-		fmt.Printf("  %s %-20s  %-30s  %s%s\n",
+		fmt.Printf("  %s %-*s  %-*s  %s%s\n",
 			prefix,
-			branchName,
-			relPath,
+			maxBranchLen, branchName,
+			maxPathLen, relPath,
 			status,
 			statusSymbol,
 		)

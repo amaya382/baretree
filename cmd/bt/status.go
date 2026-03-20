@@ -83,7 +83,6 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Print worktrees
 	fmt.Println("Worktrees:")
-	fmt.Printf("     %-20s  %-30s  %s\n", "BRANCH", "PATH", "STATUS")
 	var warningWorktrees []worktreeWarning
 
 	// Determine which worktree we're currently in
@@ -99,6 +98,47 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Track branches that have worktrees
 	worktreeBranches := make(map[string]bool)
+
+	// Collect orphan branches early so they are included in column width calculation
+	var orphanBranches []string
+	localBranches, err := wtMgr.ListLocalBranches()
+	if err == nil {
+		wtBranchSet := make(map[string]bool)
+		for _, wt := range worktrees {
+			if wt.Branch != "" {
+				wtBranchSet[wt.Branch] = true
+			}
+		}
+		for _, branch := range localBranches {
+			if !wtBranchSet[branch] {
+				orphanBranches = append(orphanBranches, branch)
+			}
+		}
+	}
+
+	// Calculate dynamic column widths
+	maxBranchLen := len("BRANCH")
+	maxPathLen := len("PATH")
+	for _, wt := range worktrees {
+		branchName := wt.Branch
+		if branchName == "" {
+			branchName = "(detached)"
+		}
+		if len(branchName) > maxBranchLen {
+			maxBranchLen = len(branchName)
+		}
+		relPath, _ := filepath.Rel(repoRoot, wt.Path)
+		if len(relPath) > maxPathLen {
+			maxPathLen = len(relPath)
+		}
+	}
+	for _, branch := range orphanBranches {
+		if len(branch) > maxBranchLen {
+			maxBranchLen = len(branch)
+		}
+	}
+
+	fmt.Printf("     %-*s  %-*s  %s\n", maxBranchLen, "BRANCH", maxPathLen, "PATH", "STATUS")
 
 	for _, wt := range worktrees {
 		prefix := " "
@@ -118,10 +158,10 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		// Check if this worktree is broken (path doesn't exist)
 		if _, isBroken := brokenBranches[branchName]; isBroken {
 			relPath, _ := filepath.Rel(repoRoot, wt.Path)
-			fmt.Printf("  %s %-20s  %-30s  %s%s\n",
+			fmt.Printf("  %s %-*s  %-*s  %s%s\n",
 				prefix,
-				branchName,
-				relPath,
+				maxBranchLen, branchName,
+				maxPathLen, relPath,
 				"[Broken]",
 				" ⚠️",
 			)
@@ -173,27 +213,22 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			})
 		}
 
-		fmt.Printf("  %s %-20s  %-30s  %s%s\n",
+		fmt.Printf("  %s %-*s  %-*s  %s%s\n",
 			prefix,
-			branchName,
-			relPath,
+			maxBranchLen, branchName,
+			maxPathLen, relPath,
 			status,
 			statusSymbol,
 		)
 	}
 
 	// Append local branches without worktrees at the bottom of the table
-	localBranches, err := wtMgr.ListLocalBranches()
-	if err == nil {
-		for _, branch := range localBranches {
-			if !worktreeBranches[branch] {
-				fmt.Printf("    %-20s  %-30s  %s\n",
-					branch,
-					"-",
-					"[No worktree]",
-				)
-			}
-		}
+	for _, branch := range orphanBranches {
+		fmt.Printf("    %-*s  %-*s  %s\n",
+			maxBranchLen, branch,
+			maxPathLen, "-",
+			"[No worktree]",
+		)
 	}
 
 	fmt.Println()

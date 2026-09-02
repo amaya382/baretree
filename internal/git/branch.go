@@ -2,6 +2,7 @@ package git
 
 import (
 	"fmt"
+	"os/exec"
 	"strconv"
 	"strings"
 )
@@ -188,6 +189,47 @@ func (e *Executor) ListLocalBranches() ([]string, error) {
 	}
 
 	return strings.Split(output, "\n"), nil
+}
+
+// IsBranchMerged reports whether branch is fully merged into target.
+// A branch is considered merged when it is an ancestor of target, i.e. deleting
+// it with `git branch -d` would not lose any commits reachable only from it.
+func (e *Executor) IsBranchMerged(branch, target string) (bool, error) {
+	if branch == "" {
+		return false, fmt.Errorf("branch name is empty")
+	}
+	if target == "" {
+		return false, fmt.Errorf("target branch is empty")
+	}
+
+	// merge-base --is-ancestor exits 0 when branch is ancestor of target, 1 when not.
+	// Anything else is a real failure.
+	_, _, err := e.ExecuteWithStderr("merge-base", "--is-ancestor", branch, target)
+	if err == nil {
+		return true, nil
+	}
+	if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+		return false, nil
+	}
+	return false, fmt.Errorf("failed to check merge status of '%s' against '%s': %w", branch, target, err)
+}
+
+// DeleteBranch deletes a local branch. When force is true, uses `-D` to bypass
+// the not-fully-merged safety check.
+func (e *Executor) DeleteBranch(branch string, force bool) error {
+	if branch == "" {
+		return fmt.Errorf("branch name is empty")
+	}
+
+	flag := "-d"
+	if force {
+		flag = "-D"
+	}
+
+	if _, err := e.Execute("branch", flag, branch); err != nil {
+		return fmt.Errorf("failed to delete branch '%s': %w", branch, err)
+	}
+	return nil
 }
 
 // PullBranch fast-forwards the specified local branch to its upstream.

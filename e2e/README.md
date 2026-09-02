@@ -31,6 +31,16 @@ Error handling tests.
 | `TestJourney7_ErrorHandling/migrate non-git directory` | Failure when migrating non-git directory |
 | `TestErrorMessages` | Error message helpfulness |
 
+### journey_remove_safety_test.go
+
+`bt rm` pre-flight safety tests: nothing is deleted when the worktree is dirty or the branch is not fully merged unless `--force` is passed.
+
+| Test Case | Test Purpose |
+|-----------|--------------|
+| `TestRemove_UnmergedBranchSafety` | `--with-branch` aborts on not-fully-merged branch; `--force` drops both worktree and branch |
+| `TestRemove_UncommittedChangesSafety` | Uncommitted changes abort removal; `--force` drops the worktree |
+| `TestRemove_UncommittedAndUnmergedReportedTogether` | Both blockers appear in one pre-flight message |
+
 ### journey_hierarchy_test.go
 
 Hierarchical branch name tests.

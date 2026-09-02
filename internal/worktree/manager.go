@@ -141,6 +141,17 @@ func (m *Manager) AddWithOptions(branchName string, opts AddOptions, cmdOutput i
 	return worktreePath, postCreateResult, nil
 }
 
+// HasUncommittedChanges reports whether the worktree has any staged, unstaged,
+// or untracked changes.
+func (m *Manager) HasUncommittedChanges(worktreePath string) (bool, error) {
+	exec := git.NewExecutor(worktreePath)
+	output, err := exec.Execute("status", "--porcelain")
+	if err != nil {
+		return false, fmt.Errorf("failed to check working tree status at %s: %w", worktreePath, err)
+	}
+	return output != "", nil
+}
+
 // Remove removes a worktree
 func (m *Manager) Remove(worktreePath string, force bool) error {
 	args := []string{"worktree", "remove"}

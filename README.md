@@ -330,7 +330,7 @@ cp examples/rules/working-directory-on-git-worktree-with-baretree.md .cursor/rul
 |---------|-------------|
 | `bt add <branch>` | Add worktree (`-b` for new branch, `--base` for base branch/commit, `--behind` for behind-upstream action, auto-fetches remotes) |
 | `bt list` / `bt ls` | List worktrees |
-| `bt remove` / `bt rm` | Remove worktree (`--with-branch` to delete branch) |
+| `bt remove` / `bt rm` | Remove worktree (`--with-branch` to delete branch, `--force` to override safety checks) |
 | `bt cd <name>` | Switch to worktree (`@` for default, `-` for previous) |
 | `bt status` | Show repository status |
 | `bt repair` | Repair worktree/branch name mismatches |
@@ -491,10 +491,19 @@ eval "$(bt shell-init bash)"  # or zsh/fish
 1. Enable Developer Mode (Windows 10+)
 2. Or use `--type copy` instead
 
-### Can't remove worktree (uncommitted changes)
+### Can't remove worktree (uncommitted changes or unmerged branch)
+
+`bt rm` aborts before touching anything when the worktree has uncommitted
+changes, or (with `--with-branch`) the branch is not fully merged into the
+default branch. Nothing is deleted in that case — the branch would otherwise
+be left behind after the worktree is gone.
+
+Use `--force` to override both checks. It enables `git worktree remove --force`
+and `git branch -D`, so uncommitted work and unmerged commits are dropped.
 
 ```bash
-bt rm feature/branch --force
+bt rm feature/branch --force                # discard uncommitted changes
+bt rm feature/branch --with-branch --force  # also drop an unmerged branch
 ```
 
 ### Worktree and branch names don't match

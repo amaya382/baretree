@@ -146,7 +146,10 @@ Remote branch operation tests.
 | `TestAddNewBranchShowsBaseInfo` | Display of base branch information (HEAD fallback) |
 | `TestAddNewBranchWithCommitBase` | `--base` with commit hash (full and short) works correctly |
 | `TestAddBehindFlagContinue` | `--behind=continue` proceeds with warning when behind |
-| `TestAddBehindFlagPull` | `--behind=pull` pulls base branch and then creates worktree |
+| `TestAddBehindFlagPull` | `--behind=pull` pulls base branch and then creates worktree (also verifies the checked-out worktree ends up clean and in sync with the ref) |
+| `TestAddBehindFlagPullDirtyWorktree` | `--behind=pull` aborts and leaves the branch untouched when its worktree has conflicting uncommitted changes |
+| `TestAddBehindFlagPullNoWorktree` | `--behind=pull` still advances the ref via update-ref when the target branch has no worktree yet |
+| `TestAddBehindFlagPullFromOtherWorktree` | `--behind=pull` invoked from a different worktree still syncs the correct target worktree with the pulled ref |
 | `TestAddBehindFlagAbort` | `--behind=abort` aborts when base branch is behind |
 | `TestAddBehindFlagInvalid` | Invalid `--behind` value shows error |
 

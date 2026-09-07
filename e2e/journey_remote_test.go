@@ -570,20 +570,20 @@ func TestAddBehindFlagContinue(t *testing.T) {
 	})
 }
 
-// TestAddBehindFlagPull tests --behind=pull when base branch is behind
+// TestAddBehindFlagPull tests --behind=pull when base branch is behind.
+// Also guards against a regression where --behind=pull advanced only the ref
+// via update-ref, leaving the checked-out main worktree with the pre-pull
+// snapshot on disk (files reported as unstaged changes).
 func TestAddBehindFlagPull(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping e2e test in short mode")
 	}
 
 	projectDir, bareDir := setupBehindRepo(t, "behind-pull")
+	mainWorktree := filepath.Join(projectDir, "main")
 
 	t.Run("behind=pull pulls and then creates worktree", func(t *testing.T) {
-		// Get commit count before pull
-		cmd := exec.Command("git", "rev-list", "--count", "main")
-		cmd.Dir = bareDir
-		beforeOutput, _ := cmd.Output()
-		beforeCount := strings.TrimSpace(string(beforeOutput))
+		beforeCount := strings.TrimSpace(runGitSuccess(t, bareDir, "rev-list", "--count", "main"))
 
 		stdout := runBtSuccess(t, projectDir, "add", "-b", "feat/behind-pull", "--behind=pull")
 
@@ -592,16 +592,163 @@ func TestAddBehindFlagPull(t *testing.T) {
 		assertOutputContains(t, stdout, "is now up to date")
 		assertOutputContains(t, stdout, "Worktree created")
 
-		// Verify that main was actually pulled (commit count should increase)
-		cmd = exec.Command("git", "rev-list", "--count", "main")
-		cmd.Dir = bareDir
-		afterOutput, _ := cmd.Output()
-		afterCount := strings.TrimSpace(string(afterOutput))
-
+		afterCount := strings.TrimSpace(runGitSuccess(t, bareDir, "rev-list", "--count", "main"))
 		if afterCount == beforeCount {
 			t.Errorf("expected main to be pulled (commit count unchanged: %s)", beforeCount)
 		}
+
+		// The main worktree must reflect the pulled commit: HEAD matches the
+		// branch, the new file exists, and there are no phantom unstaged changes.
+		mainHead := strings.TrimSpace(runGitSuccess(t, mainWorktree, "rev-parse", "HEAD"))
+		branchHead := strings.TrimSpace(runGitSuccess(t, bareDir, "rev-parse", "main"))
+		if mainHead != branchHead {
+			t.Errorf("main worktree HEAD %s does not match branch head %s", mainHead, branchHead)
+		}
+		assertFileExists(t, filepath.Join(mainWorktree, "extra.txt"))
+		if status := runGitSuccess(t, mainWorktree, "status", "--porcelain"); status != "" {
+			t.Errorf("expected main worktree to be clean after pull, got:\n%s", status)
+		}
 	})
+}
+
+// TestAddBehindFlagPullDirtyWorktree ensures that when the pulled branch is
+// checked out in a dirty worktree, bt add --behind=pull aborts and leaves the
+// worktree (and its branch ref) untouched instead of silently diverging.
+func TestAddBehindFlagPullDirtyWorktree(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	projectDir, bareDir := setupBehindRepo(t, "behind-pull-dirty")
+	mainWorktree := filepath.Join(projectDir, "main")
+
+	// Dirty extra.txt in the main worktree so a fast-forward that touches it
+	// would refuse rather than merging around the change. setupBehindRepo's
+	// upstream advance introduces extra.txt, so it is the exact file the pull
+	// needs to update.
+	dirtyFile := filepath.Join(mainWorktree, "extra.txt")
+	if err := os.WriteFile(dirtyFile, []byte("dirty local changes"), 0644); err != nil {
+		t.Fatalf("failed to dirty main worktree: %v", err)
+	}
+	runGitSuccess(t, mainWorktree, "add", "extra.txt")
+
+	branchBefore := strings.TrimSpace(runGitSuccess(t, bareDir, "rev-parse", "main"))
+
+	stdout, stderr := runBtExpectError(t, projectDir, "add", "-b", "feat/dirty-pull", "--behind=pull")
+	combined := stdout + stderr
+	assertOutputContains(t, combined, "Warning: 'main' is")
+	assertOutputContains(t, combined, "failed to fast-forward 'main'")
+
+	// The branch ref must not have moved.
+	branchAfter := strings.TrimSpace(runGitSuccess(t, bareDir, "rev-parse", "main"))
+	if branchAfter != branchBefore {
+		t.Errorf("branch main advanced despite dirty worktree: %s -> %s", branchBefore, branchAfter)
+	}
+
+	// Local edits must be preserved.
+	content, err := os.ReadFile(dirtyFile)
+	if err != nil {
+		t.Fatalf("failed to read extra.txt: %v", err)
+	}
+	if string(content) != "dirty local changes" {
+		t.Errorf("expected dirty local changes to survive, got: %q", string(content))
+	}
+
+	// The new worktree must not have been created.
+	assertFileNotExists(t, filepath.Join(projectDir, "feat", "dirty-pull"))
+}
+
+// TestAddBehindFlagPullNoWorktree covers --behind=pull when the target branch
+// has no worktree yet (bt add <existing-branch> --behind=pull). The bare-safe
+// update-ref path is expected: the ref advances even without a worktree.
+func TestAddBehindFlagPullNoWorktree(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	projectDir, bareDir := setupBehindRepo(t, "behind-pull-no-wt")
+	tempDir := filepath.Dir(projectDir)
+	workPath := filepath.Join(tempDir, "work")
+
+	// Create a fresh remote branch (no local worktree) and advance it once so
+	// the eventual local tracking branch will be behind its upstream.
+	const remoteBranch = "feat/no-wt-target"
+	runGitSuccess(t, workPath, "checkout", "-b", remoteBranch)
+	if err := os.WriteFile(filepath.Join(workPath, "no-wt-v1.txt"), []byte("v1"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+	runGitSuccess(t, workPath, "add", ".")
+	runGitSuccess(t, workPath, "commit", "-m", "no-wt v1")
+	runGitSuccess(t, workPath, "push", "origin", remoteBranch)
+	// Fetch so the bare repo learns about the new remote branch.
+	runGitSuccess(t, bareDir, "fetch", "origin")
+
+	// Create a local tracking branch without a worktree.
+	runGitSuccess(t, bareDir, "branch", remoteBranch, "origin/"+remoteBranch)
+	runGitSuccess(t, bareDir, "config", "branch."+remoteBranch+".remote", "origin")
+	runGitSuccess(t, bareDir, "config", "branch."+remoteBranch+".merge", "refs/heads/"+remoteBranch)
+
+	// Advance the remote so the local branch is behind its upstream.
+	if err := os.WriteFile(filepath.Join(workPath, "no-wt-v2.txt"), []byte("v2"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+	runGitSuccess(t, workPath, "add", ".")
+	runGitSuccess(t, workPath, "commit", "-m", "no-wt v2")
+	runGitSuccess(t, workPath, "push", "origin", remoteBranch)
+
+	branchBefore := strings.TrimSpace(runGitSuccess(t, bareDir, "rev-parse", remoteBranch))
+
+	stdout := runBtSuccess(t, projectDir, "add", remoteBranch, "--behind=pull")
+	assertOutputContains(t, stdout, "Pulling '"+remoteBranch+"'")
+	assertOutputContains(t, stdout, "is now up to date")
+	assertOutputContains(t, stdout, "Worktree created")
+
+	// Refresh remote-tracking refs before comparing (bt add already fetched,
+	// but this documents the expected invariant plainly).
+	runGitSuccess(t, bareDir, "fetch", "origin")
+	branchAfter := strings.TrimSpace(runGitSuccess(t, bareDir, "rev-parse", remoteBranch))
+	upstreamAfter := strings.TrimSpace(runGitSuccess(t, bareDir, "rev-parse", "origin/"+remoteBranch))
+	if branchAfter == branchBefore {
+		t.Errorf("%s did not advance: still at %s", remoteBranch, branchBefore)
+	}
+	if branchAfter != upstreamAfter {
+		t.Errorf("%s did not fast-forward to upstream: branch=%s upstream=%s",
+			remoteBranch, branchAfter, upstreamAfter)
+	}
+	assertFileExists(t, filepath.Join(projectDir, remoteBranch, "no-wt-v2.txt"))
+}
+
+// TestAddBehindFlagPullFromOtherWorktree ensures that even when bt add is
+// invoked from a worktree other than the one being pulled, PullBranch still
+// resolves the correct checked-out worktree and keeps it in sync with the ref.
+func TestAddBehindFlagPullFromOtherWorktree(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
+	projectDir, bareDir := setupBehindRepo(t, "behind-pull-cross")
+	mainWorktree := filepath.Join(projectDir, "main")
+
+	// Create a side worktree first (main is behind, so use --behind=continue
+	// to keep the setup separate from the pull under test).
+	runBtSuccess(t, projectDir, "add", "-b", "feat/side", "--behind=continue")
+	sideWorktree := filepath.Join(projectDir, "feat", "side")
+
+	stdout := runBtSuccess(t, sideWorktree, "add", "-b", "feat/cross-target", "--behind=pull")
+	assertOutputContains(t, stdout, "Pulling 'main'")
+	assertOutputContains(t, stdout, "Worktree created")
+
+	// Main worktree must be sync'd with the branch even though bt was invoked
+	// from a different working directory.
+	mainHead := strings.TrimSpace(runGitSuccess(t, mainWorktree, "rev-parse", "HEAD"))
+	branchHead := strings.TrimSpace(runGitSuccess(t, bareDir, "rev-parse", "main"))
+	if mainHead != branchHead {
+		t.Errorf("main worktree HEAD %s does not match branch head %s", mainHead, branchHead)
+	}
+	assertFileExists(t, filepath.Join(mainWorktree, "extra.txt"))
+	if status := runGitSuccess(t, mainWorktree, "status", "--porcelain"); status != "" {
+		t.Errorf("expected main worktree to be clean after cross-worktree pull, got:\n%s", status)
+	}
 }
 
 // TestAddBehindFlagAbort tests --behind=abort when base branch is behind

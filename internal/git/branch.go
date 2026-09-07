@@ -233,32 +233,58 @@ func (e *Executor) DeleteBranch(branch string, force bool) error {
 }
 
 // PullBranch fast-forwards the specified local branch to its upstream.
-// Works in bare repositories by verifying the fast-forward condition and using update-ref.
+// If the branch is checked out in a worktree, runs `git merge --ff-only` there
+// so the working tree and index advance with the ref. Otherwise updates the ref
+// directly via update-ref (bare-safe path).
 func (e *Executor) PullBranch(localBranch string) error {
-	// Resolve the upstream commit
 	upstreamHash, err := e.Execute("rev-parse", localBranch+"@{u}")
 	if err != nil {
 		return fmt.Errorf("failed to resolve upstream for '%s': %w", localBranch, err)
 	}
 
-	// Resolve the local branch commit
 	localHash, err := e.Execute("rev-parse", localBranch)
 	if err != nil {
 		return fmt.Errorf("failed to resolve '%s': %w", localBranch, err)
 	}
 
 	if localHash == upstreamHash {
-		return nil // Already up to date
+		return nil
 	}
 
-	// Verify that the upstream is a fast-forward of the local branch
-	// (i.e., local branch is an ancestor of upstream)
-	_, err = e.Execute("merge-base", "--is-ancestor", localBranch, localBranch+"@{u}")
-	if err != nil {
+	if _, err := e.Execute("merge-base", "--is-ancestor", localBranch, localBranch+"@{u}"); err != nil {
 		return fmt.Errorf("cannot fast-forward '%s': upstream has diverged", localBranch)
 	}
 
-	// Update the local branch ref to the upstream commit
+	worktreePath, err := e.checkedOutWorktreePath(localBranch)
+	if err != nil {
+		return fmt.Errorf("failed to locate worktree for '%s': %w", localBranch, err)
+	}
+
+	if worktreePath != "" {
+		cmd := exec.Command("git", "merge", "--ff-only", localBranch+"@{u}")
+		cmd.Dir = worktreePath
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("failed to fast-forward '%s' in worktree %s: %w\n%s",
+				localBranch, worktreePath, err, strings.TrimSpace(string(out)))
+		}
+		return nil
+	}
+
 	_, err = e.Execute("update-ref", "refs/heads/"+localBranch, upstreamHash)
 	return err
+}
+
+// checkedOutWorktreePath returns the worktree path where localBranch is checked out,
+// or "" if no worktree currently has it checked out.
+func (e *Executor) checkedOutWorktreePath(localBranch string) (string, error) {
+	output, err := e.Execute("worktree", "list", "--porcelain")
+	if err != nil {
+		return "", err
+	}
+	for _, wt := range ParseWorktreeList(output) {
+		if wt.Branch == localBranch {
+			return wt.Path, nil
+		}
+	}
+	return "", nil
 }

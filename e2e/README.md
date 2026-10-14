@@ -182,6 +182,18 @@ Worktree repair tests.
 | `TestRepair_MovedBareRepository` | Repair after entire project moved using `bt repair --fix-paths` |
 | `TestRepair_PathChanged` | Repair after path change (home directory rename) using `bt repair --fix-paths` |
 
+### journey_repo_move_test.go
+
+Repository move tests.
+
+| Test Case | Test Purpose |
+|-----------|--------------|
+| `TestRepoMove_DestinationForm` | Relative destination replaces the part matching the source form (name / owner/name / full path) |
+| `TestRepoMove_CleansUpEmptyParents` | Empty parent directories of the source are removed |
+| `TestRepoMove_AbsolutePathAndAlias` | `bt repo mv` to an absolute path outside the root (with warning) |
+| `TestRepoMove_ExternalWorktree` | Worktree outside the repository keeps working after a move to a different depth |
+| `TestRepoMove_ErrorCases` | Existing destination / overlap / inside another repo / running inside the source / form mismatch / `..` |
+
 ### journey_postcreate_test.go
 
 Post-create file configuration tests.

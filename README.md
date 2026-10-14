@@ -346,6 +346,7 @@ cp examples/rules/working-directory-on-git-worktree-with-baretree.md .cursor/rul
 | `bt repo list` | `bt repos` | List all managed repositories |
 | `bt repo cd <name>` | `bt go` | Jump to a repository |
 | `bt repo migrate <path> --to-managed` | `bt migrate` | Migrate and move to baretree managed directory |
+| `bt repo move <name> <dest>` | `bt repo mv` | Move or rename a baretree repository |
 | `bt repo remove <name>` | `bt repo rm` | Remove a baretree repository |
 | `bt repo root` | | Show baretree root directory |
 | `bt repo config` | | Manage global configuration |
@@ -504,6 +505,25 @@ and `git branch -D`, so uncommitted work and unmerged commits are dropped.
 ```bash
 bt rm feature/branch --force                # discard uncommitted changes
 bt rm feature/branch --with-branch --force  # also drop an unmerged branch
+```
+
+### Moving or renaming a repository
+
+Use `bt repo move` so that worktree paths are updated together with the directory.
+A relative destination takes the same form as the source, and only that part of the path is replaced.
+
+```bash
+bt repo mv old-name new-name                         # github.com/user/old-name -> github.com/user/new-name
+bt repo mv user/old-name other/new-name              # -> github.com/other/new-name
+bt repo mv github.com/user/old-name gitlab.com/g/x   # full path: relative to the baretree root
+bt repo mv old-name /path/to/new-name                # absolute path
+```
+
+If the repository was already moved with `mv`, fix the worktree paths from the new repository root:
+
+```bash
+bt repair --fix-paths --dry-run  # Preview changes
+bt repair --fix-paths
 ```
 
 ### Worktree and branch names don't match

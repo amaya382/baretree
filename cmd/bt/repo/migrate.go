@@ -943,14 +943,15 @@ func updateWorktreePaths(oldRepoRoot, newRepoRoot string) error {
 			oldWorktreePath = filepath.Clean(oldWorktreePath)
 		}
 
-		// Calculate relative path from old repo root to the worktree
-		relWorktreePath, err := filepath.Rel(oldRepoRoot, oldWorktreePath)
-		if err != nil {
-			return fmt.Errorf("failed to calculate relative path for %s: %w", worktreeName, err)
+		// External worktrees stay where they are; only their link to the bare dir changes
+		newWorktreePath := oldWorktreePath
+		if isSubPath(oldRepoRoot, oldWorktreePath) {
+			relWorktreePath, err := filepath.Rel(oldRepoRoot, oldWorktreePath)
+			if err != nil {
+				return fmt.Errorf("failed to calculate relative path for %s: %w", worktreeName, err)
+			}
+			newWorktreePath = filepath.Join(newRepoRoot, relWorktreePath)
 		}
-
-		// Calculate new worktree path
-		newWorktreePath := filepath.Join(newRepoRoot, relWorktreePath)
 
 		// Update gitdir file in bare repo's worktrees directory
 		newGitdir := filepath.Join(newWorktreePath, ".git") + "\n"
